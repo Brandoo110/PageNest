@@ -1,5 +1,7 @@
 import test from 'node:test';
 import http from 'node:http';
+import {gzipSync,gunzipSync} from 'node:zlib';
+import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
 import {mkdtempSync,readdirSync,rmSync,readFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
@@ -212,4 +214,46 @@ test('search ignores obsolete responses after typing, clearing, category changes
  client.setContext('待清空');client.scheduleSearch();client.setContext('');client.scheduleSearch();calls[3].resolve({results:[{id:'old'}]});await new Promise(r=>setImmediate(r));assert.equal(client.state().results.length,0);
  client.setContext('跨分类');client.scheduleSearch();client.setContext('','trash');client.invalidateSearch();calls[4].resolve({results:[{id:'old'}]});await new Promise(r=>setImmediate(r));assert.equal(client.state().results.length,0);
  client.setContext('离开');client.scheduleSearch();client.setContext('离开','all','reader');client.invalidateSearch();calls[5].reject(Error('迟到错误'));await new Promise(r=>setImmediate(r));assert.equal(client.state().error,'');
+});
+
+
+test('backup roundtrip, merge deduplication, bounded validation and failure rollback',async()=>{
+ const dirs=[mkdtempSync(join(tmpdir(),'pagenest-backup-a-')),mkdtempSync(join(tmpdir(),'pagenest-backup-b-'))];let source,target;
+ const start=async dir=>{const app=createApp({dataDir:dir});await new Promise(r=>app.server.listen(0,'127.0.0.1',r));app.origin=`http://127.0.0.1:${app.server.address().port}`;return app};
+ const api=async(app,path,method='GET',body,headers={})=>{const res=await fetch(app.origin+path,{method,headers:{...(method==='GET'?{}:{Origin:app.origin}),...(body instanceof FormData?{}:body?{'Content-Type':Buffer.isBuffer(body)?'application/octet-stream':'application/json'}:{}),...headers},body:body instanceof FormData||Buffer.isBuffer(body)?body:body?JSON.stringify(body):undefined});return {status:res.status,data:await res.json()}};
+ const form=(title,id,sourceBytes=null,name='source.txt')=>{const f=new FormData();f.set('requestId',id);f.set('html',new Blob([`<title>${title}</title><h1>${title}</h1><p>数据库检索 · 虚构内容。</p>`]),'fiction.html');if(sourceBytes)f.set('source',new Blob([sourceBytes]),name);f.set('sourceUrl','https://example.com/fiction');return f};
+ try{
+  source=await start(dirs[0]);target=await start(dirs[1]);
+  const folder=(await api(source,'/api/folders','POST',{name:'阅读笔记'})).data.id;await api(source,'/api/folders','POST',{name:'空分类'});
+  const txt=Buffer.from('原文保持字节。'),pdf=Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\n%%EOF');
+  const a=(await api(source,'/api/import','POST',form('实践甲','backup-request-001',txt,'original.txt'))).data.material;
+  const b=(await api(source,'/api/import','POST',form('实践乙','backup-request-002',pdf,'small.pdf'))).data.material;
+  await api(source,'/api/import','POST',form('实践丙','backup-request-003'));
+  await api(source,'/api/materials/'+a.id,'PATCH',{folderId:folder});await api(source,'/api/materials/'+b.id,'PATCH',{deleted:true});
+  const replacement=new FormData();replacement.set('requestId','backup-source-004');replacement.set('source',new Blob([txt]),'same-bytes-other-name.txt');replacement.set('sourceUrl','https://example.com/new');await api(source,'/api/materials/'+a.id+'/source','POST',replacement);
+  await api(source,'/api/materials/'+a.id+'/open','POST',{});for(const view of ['html','source'])await api(source,'/api/materials/'+a.id+'/reading/'+view,'PUT',{scrollTop:view==='html'?245:360,page:view==='html'?1:3});
+  const download=await fetch(source.origin+'/api/backup/export');assert.equal(download.status,200);assert.match(download.headers.get('content-disposition'),/attachment.*\.pagenest/);assert.equal(download.headers.get('cache-control'),'no-store');const bytes=Buffer.from(await download.arrayBuffer());
+  const pack=JSON.parse(gunzipSync(bytes).toString());assert.equal(pack.format,'PageNest');assert.equal(pack.version,1);assert.deepEqual(Object.keys(pack).sort(),['exportedAt','files','folders','format','materials','reading','version']);assert.equal(pack.files.length,source.store.library().files.length);
+  const assertUnchanged=()=>{assert.deepEqual(target.store.library(),before);assert.deepEqual(readdirSync(join(dirs[1],'files')).sort(),fileNames);assert.deepEqual(readdirSync(join(dirs[1],'display')).sort(),displayNames)};
+  let before=target.store.library(),fileNames=readdirSync(join(dirs[1],'files')).sort(),displayNames=readdirSync(join(dirs[1],'display')).sort();
+  const bad=[];const mutate=fn=>{const p=structuredClone(pack);fn(p);bad.push(gzipSync(Buffer.from(JSON.stringify(p))))};
+  bad.push(Buffer.from('bad gzip'),bytes.subarray(0,bytes.length-8));mutate(p=>p.version=2);mutate(p=>p.files[0].sha256='0'.repeat(64));mutate(p=>p.files.splice(0,1));mutate(p=>p.files.push(p.files[0]));mutate(p=>p.materials[0].folderId='aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');mutate(p=>p.reading[0].scrollTop=Infinity);mutate(p=>p.files[0].data=p.files[0].data.slice(0,-1)+'!');mutate(p=>p.files[0].size++);mutate(p=>p.materials[0].createdAt='bad time');mutate(p=>p.path='/tmp/forbidden');
+  for(const buffer of bad){assert.equal((await api(target,'/api/backup/restore','POST',buffer)).status,400);assertUnchanged()}
+  const many=structuredClone(pack);many.folders=Array(2001).fill(many.folders[0]);assert.equal((await api(target,'/api/backup/restore','POST',gzipSync(Buffer.from(JSON.stringify(many))))).status,413);assertUnchanged();
+  assert.equal((await api(target,'/api/backup/restore','POST',bytes,{Origin:'https://foreign.example'})).status,403);assertUnchanged();
+  const limitStatus=await new Promise((resolve,reject)=>{const req=http.request(target.origin+'/api/backup/restore',{method:'POST',headers:{Origin:target.origin,'Content-Length':100*1024*1024+1}},res=>{res.resume();res.on('end',()=>{resolve(res.statusCode);req.destroy()})});req.on('error',reject);req.end('x')});assert.equal(limitStatus,413);assertUnchanged();
+  const restored=await api(target,'/api/backup/restore','POST',bytes);assert.equal(restored.status,200);assert.deepEqual(restored.data,{added:3,skipped:0});
+  const sourceState=source.store.library(),targetState=target.store.library();assert.equal(targetState.folders.length,2);assert.equal(targetState.files.length,sourceState.files.length);assert.equal(targetState.materials.length,3);
+  for(const m of sourceState.materials){const n=targetState.materials.find(x=>x.title===m.title);assert.notEqual(n.id,m.id);for(const k of ['title','sourceUrl','createdAt','lastReadAt','deletedAt'])assert.equal(n[k],m[k]);assert.equal(targetState.folders.find(x=>x.id===n.folderId)?.name,sourceState.folders.find(x=>x.id===m.folderId)?.name);for(const k of ['htmlFileId','sourceFileId'])if(m[k]){const downloaded=await fetch(target.origin+'/api/files/'+n[k]+'/download');assert.equal(downloaded.status,200);assert.deepEqual(Buffer.from(await downloaded.arrayBuffer()),source.store.raw(m[k]))}assert.deepEqual(target.store.reading(n.id),source.store.reading(m.id))}
+  for(const f of sourceState.files){const n=targetState.files.find(x=>x.sha256===f.sha256&&x.mime===f.mime&&x.name===f.name);assert.ok(n);assert.deepEqual(target.store.raw(n.id),source.store.raw(f.id))}
+  const first=targetState.materials.find(x=>x.title==='实践甲');await api(target,'/api/materials/'+first.id,'PATCH',{title:'当前修改',folderId:null,deleted:true});await api(target,'/api/materials/'+first.id+'/reading/html','PUT',{scrollTop:999,page:2});
+  before=target.store.library();fileNames=readdirSync(join(dirs[1],'files')).sort();displayNames=readdirSync(join(dirs[1],'display')).sort();const oldReading=target.store.reading(first.id);
+  assert.deepEqual((await api(target,'/api/backup/restore','POST',bytes)).data,{added:0,skipped:3});assertUnchanged();assert.deepEqual(target.store.reading(first.id),oldReading);
+  assert.equal((await api(target,'/api/backup/restore','POST',bad[0])).status,400);assertUnchanged();
+  const faultPack=structuredClone(pack),orphan=Buffer.from('new orphan');faultPack.files.push({id:'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',name:'new-orphan.txt',mime:'text/plain',size:orphan.length,sha256:createHash('sha256').update(orphan).digest('hex'),data:orphan.toString('base64')});
+  const realWrite=target.store.writeFile;target.store.writeFile=function(...args){realWrite.apply(this,args);throw Error('forced file write failure')};
+  assert.equal((await api(target,'/api/backup/restore','POST',gzipSync(Buffer.from(JSON.stringify(faultPack))))).status,500);assertUnchanged();assert.deepEqual(target.store.reading(first.id),oldReading);target.store.writeFile=realWrite;
+  await target.close();target=await start(dirs[1]);assertUnchanged();assert.equal((await api(target,'/api/search?q='+encodeURIComponent('数据库'))).data.results.length,1);assert.equal((await api(target,'/api/search?q='+encodeURIComponent('数据库')+'&trash=1')).data.results.length,2);
+  const after=await fetch(target.origin+'/api/backup/export');assert.equal(after.status,200);const repack=JSON.parse(gunzipSync(Buffer.from(await after.arrayBuffer())).toString());assert.equal(repack.files.length,pack.files.length);
+ }finally{if(source)await source.close();if(target)await target.close();for(const dir of dirs)rmSync(dir,{recursive:true,force:true})}
 });

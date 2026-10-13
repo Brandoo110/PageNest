@@ -4,6 +4,7 @@ import {join} from 'node:path';
 import {randomUUID,createHash} from 'node:crypto';
 import {fail,validateFile} from './upload.js';
 import {inspectHTML,textDisplay} from './html.js';
+import {encodeBackup,decodeBackup,BACKUP_LIMIT,RECORD_LIMIT} from './backup.js';
 const now=()=>new Date().toISOString();
 const SYSTEM=['全部资料','最近阅读','未分类','回收站'];
 function title(value){const result=String(value??'').trim();if(!result||result.length>120)throw fail(400,'标题须为 1–120 字。');return result}
@@ -44,5 +45,30 @@ export class Store{
  open(id){this.get(id);this.db.prepare('UPDATE materials SET lastReadAt=? WHERE id=?').run(now(),id);return {material:this.get(id),reading:this.reading(id)}}
  raw(id){this.file(id);return readFileSync(join(this.dir,'files',id))}
  display(id){const file=this.file(id);if(file.mime==='application/pdf')throw fail(400,'PDF 请使用原生预览或下载。');return readFileSync(join(this.dir,'display',id+'.html'))}
+ exportBackup(){return this.transaction(()=>{
+  const data=this.library(),reading=this.db.prepare('SELECT * FROM reading').all();
+  if(data.folders.length+data.materials.length+data.files.length+reading.length>RECORD_LIMIT)throw fail(413,'备份记录总数超过 2000。');
+  if(data.files.reduce((n,f)=>n+f.size,0)>BACKUP_LIMIT)throw fail(413,'备份原件总量超过 100 MiB。');
+  const pack={format:'PageNest',version:1,exportedAt:now(),folders:data.folders,materials:data.materials,files:data.files.map(f=>({...f,data:this.raw(f.id).toString('base64')})),reading};return encodeBackup(pack);
+ })}
+ restoreBackup(bytes){
+  const {pack,buffers}=decodeBackup(bytes),prepared=new Map();
+  // Derive every display before opening the write transaction, even for skipped records.
+  for(const f of pack.files){const buffer=buffers.get(f.id),html=f.mime==='text/html'?inspectHTML(buffer):null;prepared.set(f.id,{buffer,display:html?.display??(f.mime==='text/plain'?textDisplay(buffer):null),text:html?.text})}
+  return this.transaction(paths=>{
+   const folders=new Map(),files=new Map(),materials=new Map();let added=0,skipped=0;
+   for(const f of pack.folders){const existing=this.db.prepare('SELECT id FROM folders WHERE name=?').get(f.name);folders.set(f.id,existing?.id||this.createFolder(f.name).id)}
+   const key=f=>JSON.stringify([f.sha256,f.mime,f.name]),existingFiles=new Map();
+   for(const f of this.db.prepare('SELECT * FROM files').all())if(!existingFiles.has(key(f)))existingFiles.set(key(f),f);
+   // Match only pre-existing files, preserving every distinct record in an empty restore.
+   for(const f of pack.files){const old=existingFiles.get(key(f)),p=prepared.get(f.id);files.set(f.id,old||this.writeFile({name:f.name,buffer:p.buffer},f.mime,p.display,paths))}
+   for(const m of pack.materials){const html=files.get(m.htmlFileId);if(this.db.prepare('SELECT id FROM materials WHERE htmlHash=?').get(html.sha256)){skipped++;continue}
+    const id=randomUUID();this.db.prepare('INSERT INTO materials(id,title,folderId,htmlFileId,sourceFileId,sourceUrl,htmlHash,deletedAt,createdAt,lastReadAt) VALUES (?,?,?,?,?,?,?,?,?,?)').run(id,m.title,m.folderId===null?null:folders.get(m.folderId),html.id,m.sourceFileId===null?null:files.get(m.sourceFileId).id,m.sourceUrl,html.sha256,m.deletedAt,m.createdAt,m.lastReadAt);
+    this.db.prepare('INSERT INTO material_text VALUES (?,?)').run(id,prepared.get(m.htmlFileId).text);materials.set(m.id,id);added++;
+   }
+   for(const r of pack.reading){const id=materials.get(r.materialId);if(id)this.db.prepare('INSERT INTO reading VALUES (?,?,?,?,?)').run(id,r.view,r.scrollTop,r.page,r.updatedAt)}
+   return {added,skipped};
+  });
+ }
  close(){this.db.close()}
 }

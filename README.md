@@ -33,7 +33,15 @@ npm start
 - HTML 资源依赖先提示并提供 HTTP 受限预览，用户明确确认继续。首版承诺自包含页面与简单离线交互；不保证任意网页应用、第三方脚本、外部字体/图像或所有编码和图表兼容。沙箱不代表执行脚本的 CPU/内存已经被限额。
 - PDF 使用浏览器原生预览，提供手动页码跳转、新窗口和下载。**仅保存手动跳转页码，不会自动报告或精确恢复 PDF 页内位置**。浏览器不支持内嵌 PDF 时用 fallback。TXT 安全转义为纯文本，HTML 原文采用同等隔离。
 - 无登录、同步、真机/跨设备验证、部署、公开分享、AI、批量导入、多级目录、PWA 或离线缓存承诺。服务严格 loopback；只允许 `127.0.0.1:<实际端口>` Host，同源写入必须带该 Origin，拒绝外来/null/缺失 Origin；不同来源无法跨站读写。`localhost` 别名也不开放。
-- 完整备份请停止本机服务后复制整个资料目录；保持 SQLite 与 files/display 配套。不要单独复制运行中的数据库文件。本次未做备份恢复专项验收。
+- 侧栏底部或手机分类抽屉打开“备份与恢复”，下载 .pagenest；恢复仅合并，同一 HTML 原件 hash 的资料整条跳过（包括回收条目），已有分类/来源/位置/回收状态不会覆盖。恢复前完整校验，写入失败回滚 DB 与本次新文件。关闭恢复窗口不会撤销已经确认的服务器操作；结果未确认时可核对当前库或重试同一备份。
+
+## .pagenest 版本1
+
+内置 gzip 压缩的 UTF-8 JSON，顶层 `{format:"PageNest",version:1,exportedAt,folders,materials,files,reading}`。folders 为 id/name；materials 与 `/api/library` DTO 一致；files 为 id/name/mime/size/sha256/data（严格 base64 原始字节）；reading 为 materialId/view/scrollTop/page/updatedAt。日期使用 ISO UTC 毫秒格式。仅支持 HTML/TXT/PDF；主 HTML 最多20MiB、附件50MiB。上传压缩包100MiB、解压 JSON150MiB、原件总量100MiB、所有数组记录合计2000；超限明确失败。备份不打包 requests、展示副本、搜索索引、程序代码、环境与密钥配置、数据库或服务端绝对数据目录。原件自身内容原样保留。
+
+导出采用一致 DB 快照并校验字节 / 长度 / hash。恢复先验证完整 schema、唯一 ID、名称/标题/HTTPS链接、日期、文件与阅读引用、base64/大小/hash，再从原件重建 display 和正文索引；不信任派生内容。分类按同名复用，新资料分配本机 UUID，保留日期、回收状态和双视图位置。原件包含保守保留的旧来源与空分类；已有原件按 sha256+mime+name 复用，不同名字保留。空库首次恢复保留全部文件记录；重复恢复不增加孤立原件。损坏、未知版本、非法字段、引用或写入失败均不会部分合并。
+
+备份没有加密，包含完整原件；请保存到你选择的本地位置。此次只在虚构临时库验证，正式资料库恢复由用户另行选择，不自动覆盖或清空。
 
 ## API
 
@@ -41,6 +49,8 @@ npm start
 
 | 方法与路径 | 输入与结果 |
 |---|---|
+| `GET /api/backup/export` | 校验后返回 no-store attachment `.pagenest` 二进制 |
+| `POST /api/backup/restore` | 单个二进制备份，合并 → `{added,skipped}`；沿用同源写入校验 |
 | `GET /api/health` | 本机健康状态 |
 | `GET /api/search?q=...&trash=0` | `{results:[{id,snippet}]}`，默认非回收全库；trash=1 只搜索回收站，片段为最多182字符的纯文本 |
 | `GET /api/library` | `{folders,materials,files}` 当前权威元数据，含回收站 |

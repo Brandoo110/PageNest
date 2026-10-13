@@ -25,3 +25,5 @@ body:has(.form-page) .toast{top:40px;bottom:auto}
 
 /* Search uses the existing library rows and paper palette. */
 .search-feedback{padding:26px 20px;color:var(--muted);font-size:13px}.search-feedback .loading-line{max-width:240px}.search-feedback button{margin-top:12px}.search-snippet{margin-top:9px;font-size:13px;line-height:1.7;color:#627165;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden}@media(max-width:700px){.search-feedback{padding:24px 8px}.search-snippet{font-size:12px;margin-top:8px}}
+
+.backup-entry{color:var(--muted);font-size:13px}.backup-section{margin-top:22px;padding-top:18px;border-top:1px solid var(--line)}.backup-section h3{font-size:15px;font-weight:550;margin-bottom:10px}.backup-section p{margin:10px 0;line-height:1.75}.backup-section .field-label{font-size:13px;font-weight:500}.backup-section button{margin-top:4px}.backup-status{font-size:13px;line-height:1.8;color:var(--green);margin-top:18px;overflow-wrap:anywhere}.backup-status:empty{display:none}
