@@ -3,7 +3,7 @@ import http from 'node:http';
 import {gzipSync,gunzipSync} from 'node:zlib';
 import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
-import {mkdtempSync,readdirSync,rmSync,readFileSync} from 'node:fs';
+import {mkdtempSync,readdirSync,rmSync,readFileSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import vm from 'node:vm';
@@ -281,4 +281,37 @@ test('from-start resets only the current readable view and preserves latest zero
  {
   const {client,calls}=make('text/plain','html');client.queueReading('material','html',{scrollTop:800,page:2});const old=client.flushReading(),resetting=client.fromStart();assert.equal(client.pending()[0].scrollTop,0);calls[0].resolve(ack());await new Promise(r=>setImmediate(r));assert.equal(client.pending()[0].scrollTop,0);assert.equal(JSON.parse(calls[1].options.body).scrollTop,0);calls[1].resolve(ack());await Promise.all([old,resetting]);assert.equal(client.pending().length,0);assert.equal(client.positions.source.scrollTop,350);
  }
+});
+
+
+test('outline shares sanitized static headings with legacy display and restricts navigation messages',async()=>{
+ const {inspectHTML,HTML_CSP}=await import('../src/html.js');
+ const {parseDocument,DomUtils}=await import('htmlparser2');
+ const bytes=Buffer.from('<!doctype html><head><title>目录样例</title><h1>头部秘密</h1></head><body><h1 id="same" data-pagenest-heading="pn-heading-99">开始</h1><div hidden><h2>隐藏</h2></div><div aria-hidden="TRUE"><h2>辅助隐藏</h2></div><h3 style="display: none !important">样式隐藏</h3><section style="visibility:hidden"><h2>祖先隐藏</h2></section><template><h2>模板</h2></template><noscript><h2>脚本关闭</h2></noscript><h2 id="same">第二章 &amp; &lt;字&gt;<span hidden>忽略</span></h2><h6>深层</h6><h3> </h3><div data-pagenest-heading="pn-heading-1">假标记</div></body>');
+ const expected=[{id:'pn-heading-0',label:'开始',level:1},{id:'pn-heading-1',label:'第二章 & <字>',level:2},{id:'pn-heading-2',label:'深层',level:6}];
+ const inspected=inspectHTML(bytes);assert.deepEqual(inspected.outline,expected);
+ const nodes=DomUtils.findAll(n=>Object.hasOwn(n.attribs||{},'data-pagenest-heading'),parseDocument(inspected.display).children);
+ assert.deepEqual(nodes.map(n=>({id:n.attribs['data-pagenest-heading'],level:Number(n.name.slice(1))})),expected.map(({id,level})=>({id,level})));
+ assert.equal(nodes[0].attribs.id,'same');assert.equal(nodes[1].attribs.id,'same');
+ assert.deepEqual(inspectHTML(Buffer.from('<p>没有标题</p>')).outline,[]);
+ const many=inspectHTML(Buffer.from('<h1>'+('字'.repeat(220))+'</h1>'+Array.from({length:205},(_,i)=>'<h2>标题 '+i+'</h2>').join('')));
+ assert.equal(many.outline.length,200);assert.equal(many.outline[0].label.length,200);assert.equal(many.outline.at(-1).id,'pn-heading-199');
+ const dir=mkdtempSync(join(tmpdir(),'pagenest-outline-'));let app;
+ try{
+  app=createApp({dataDir:dir});await new Promise(r=>app.server.listen(0,'127.0.0.1',r));const origin='http://127.0.0.1:'+app.server.address().port;
+  const form=new FormData();form.set('html',new Blob([bytes]),'outline.html');form.set('title','目录样例');form.set('requestId','outline-request');
+  const response=await fetch(origin+'/api/import',{method:'POST',headers:{Origin:origin},body:form});assert.equal(response.status,201);const {material}=await response.json();
+  const before=app.store.library();writeFileSync(join(dir,'display',material.htmlFileId+'.html'),'<h1>旧展示</h1>');
+  const outline=await fetch(origin+'/api/materials/'+material.id+'/outline');assert.equal(outline.status,200);assert.deepEqual(await outline.json(),{outline:expected});
+  const display=await fetch(origin+'/api/files/'+material.htmlFileId+'/display');assert.equal(display.headers.get('content-security-policy'),HTML_CSP);const content=await display.text();assert.match(content,/data-pagenest-heading="pn-heading-1"/);assert.doesNotMatch(content,/旧展示/);
+  assert.deepEqual(app.store.library(),before);assert.deepEqual(app.store.raw(material.htmlFileId),bytes);
+  assert.equal((await fetch(origin+'/api/materials/00000000-0000-0000-0000-000000000000/outline')).status,404);
+  assert.equal((await fetch(origin+'/api/materials/'+material.id+'/outline',{method:'POST',headers:{Origin:origin}})).status,404);
+ }finally{if(app)await app.close();rmSync(dir,{recursive:true,force:true})}
+ const handlers={},messages=[],parent={postMessage:m=>messages.push(m)};let jumps=0;
+ const heading={getAttribute:()=> 'pn-heading-1',scrollIntoView:()=>jumps++};
+ vm.runInNewContext(readFileSync(new URL('../src/bridge.js',import.meta.url),'utf8'),{parent,scrollY:0,innerWidth:320,document:{documentElement:{scrollWidth:320,scrollHeight:1800},querySelectorAll:()=>[heading]},addEventListener:(name,fn)=>handlers[name]=fn,setTimeout:fn=>{fn();return 1},clearTimeout:()=>{},scrollTo:()=>{},ResizeObserver:class{observe(){}}});
+ handlers.load();
+ for(const [source,m] of [[{}, {channel:'pagenest-reading',type:'heading',id:'pn-heading-1'}],[parent,{channel:'evil',type:'heading',id:'pn-heading-1'}],[parent,{channel:'pagenest-reading',type:'business',id:'pn-heading-1'}],[parent,{channel:'pagenest-reading',type:'heading',id:'pn-heading-999'}],[parent,{channel:'pagenest-reading',type:'heading',id:'pn-heading-1\"] *'}],[parent,{channel:'pagenest-reading',type:'heading',id:1}]])handlers.message({source,data:m});
+ assert.equal(jumps,0);handlers.message({source:parent,data:{channel:'pagenest-reading',type:'heading',id:'pn-heading-1'}});assert.equal(jumps,1);assert.ok(messages.every(m=>['position','size'].includes(m.type)));
 });

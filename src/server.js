@@ -33,6 +33,7 @@ export function createApp({dataDir=resolve('.data')}={}){
   if((match=path.match(new RegExp(`^/api/previews/(${uuid})$`)))&&req.method==='GET'){const p=previews.get(match[1]);if(!p||p.expires<Date.now())throw fail(404,'受限预览已过期，请重新选择文件。');res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Content-Security-Policy':HTML_CSP,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});return res.end(p.display)}
   if((match=path.match(new RegExp(`^/api/materials/(${uuid})$`)))){if(req.method==='GET')return send(res,200,store.get(match[1]));if(req.method==='PATCH')return send(res,200,store.edit(match[1],await json(req)));}
   if((match=path.match(new RegExp(`^/api/materials/(${uuid})/open$`)))&&req.method==='POST')return send(res,200,store.open(match[1]));
+  if((match=path.match(new RegExp(`^/api/materials/(${uuid})/outline$`)))&&req.method==='GET')return send(res,200,{outline:store.outline(match[1])});
   if((match=path.match(new RegExp(`^/api/materials/(${uuid})/source$`)))&&req.method==='POST')return send(res,200,store.source(match[1],await multipart(req)));
   if((match=path.match(new RegExp(`^/api/materials/(${uuid})/reading$`)))&&req.method==='GET')return send(res,200,store.reading(match[1]));
   if((match=path.match(new RegExp(`^/api/materials/(${uuid})/reading/(html|source)$`)))&&req.method==='PUT')return send(res,200,store.updateReading(match[1],match[2],await json(req)));

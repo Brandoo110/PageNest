@@ -44,7 +44,8 @@ export class Store{
  updateReading(id,view,body){this.get(id);if(!['html','source'].includes(view)||!Number.isFinite(body.scrollTop)||body.scrollTop<0||body.scrollTop>10000000||!Number.isInteger(body.page??1)||(body.page??1)<1||(body.page??1)>100000)throw fail(400,'阅读位置无效。');this.db.prepare('INSERT INTO reading VALUES (?,?,?,?,?) ON CONFLICT(materialId,view) DO UPDATE SET scrollTop=excluded.scrollTop,page=excluded.page,updatedAt=excluded.updatedAt').run(id,view,body.scrollTop,body.page??1,now());return this.reading(id)}
  open(id){this.get(id);this.db.prepare('UPDATE materials SET lastReadAt=? WHERE id=?').run(now(),id);return {material:this.get(id),reading:this.reading(id)}}
  raw(id){this.file(id);return readFileSync(join(this.dir,'files',id))}
- display(id){const file=this.file(id);if(file.mime==='application/pdf')throw fail(400,'PDF 请使用原生预览或下载。');return readFileSync(join(this.dir,'display',id+'.html'))}
+ outline(id){const material=this.get(id);return inspectHTML(this.raw(material.htmlFileId)).outline}
+ display(id){const file=this.file(id);if(file.mime==='application/pdf')throw fail(400,'PDF 请使用原生预览或下载。');if(file.mime==='text/html')return inspectHTML(this.raw(id)).display;return readFileSync(join(this.dir,'display',id+'.html'))}
  exportBackup(){return this.transaction(()=>{
   const data=this.library(),reading=this.db.prepare('SELECT * FROM reading').all();
   if(data.folders.length+data.materials.length+data.files.length+reading.length>RECORD_LIMIT)throw fail(413,'备份记录总数超过 2000。');
