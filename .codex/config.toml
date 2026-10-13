@@ -4,7 +4,7 @@ model_reasoning_effort = "medium"
 service_tier = "default"
 
 [agents.writer]
-description = "原型已获批后的V1唯一业务Writer，连续交付真实本地阅读库"
+description = "PageNest唯一业务Writer；隔离工作区落实获批UI，内置AI候选暂停保留"
 config_file = "agents/writer.toml"
 
 [agents.verifier]
