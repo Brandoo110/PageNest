@@ -1,0 +1,16 @@
+# 管理对话框默认标准模式；执行角色在独立工作目录配置 Fast，避免覆盖总控。
+model = "gpt-6-astra"
+model_reasoning_effort = "medium"
+service_tier = "default"
+
+[agents.writer]
+description = "PageNest 第一版唯一业务 Writer，负责完整本地流程及必要自检"
+config_file = "agents/writer.toml"
+
+[agents.verifier]
+description = "完整候选形成后的一次有界只读验收，复用已有证据"
+config_file = "agents/verifier.toml"
+
+[agents.code_manager]
+description = "可见代码管理对话框，唯一Git writer，负责分支、提交、PR与逐步合并"
+config_file = "agents/code-manager.toml"
