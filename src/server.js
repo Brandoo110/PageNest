@@ -6,6 +6,7 @@ import {randomUUID} from 'node:crypto';
 import {Store} from './store.js';
 import {multipart,validateFile,fail} from './upload.js';
 import {inspectHTML,HTML_CSP} from './html.js';
+import {readBackup} from './backup.js';
 const publicDir=new URL('../public/',import.meta.url);
 const SHELL_CSP="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
 const uuid='[0-9a-f-]{36}';
@@ -21,6 +22,8 @@ export function createApp({dataDir=resolve('.data')}={}){
   if(req.headers['sec-fetch-site']==='cross-site')throw fail(403,'不允许跨站访问。');
   const url=new URL(req.url,origin),path=url.pathname;let match;
   if(req.method==='GET'&&path==='/api/health')return send(res,200,{ok:true,localOnly:true});
+  if(req.method==='GET'&&path==='/api/backup/export'){const buffer=store.exportBackup();res.writeHead(200,{'Content-Type':'application/octet-stream','Content-Disposition':`attachment; filename="PageNest-${new Date().toISOString().slice(0,10)}.pagenest"`,'Content-Length':buffer.length,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});return res.end(buffer)}
+  if(req.method==='POST'&&path==='/api/backup/restore')return send(res,200,store.restoreBackup(await readBackup(req)));
   if(req.method==='GET'&&path==='/api/library')return send(res,200,store.library());
   if(req.method==='GET'&&path==='/api/search'){const trash=url.searchParams.get('trash')??'0';if(!['0','1'].includes(trash))throw fail(400,'搜索范围无效。');return send(res,200,store.search(url.searchParams.get('q'),trash==='1'))}
   if(path==='/api/folders'&&req.method==='POST')return send(res,201,store.createFolder((await json(req)).name));
