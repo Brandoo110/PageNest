@@ -4,7 +4,7 @@ model_reasoning_effort = "medium"
 service_tier = "default"
 
 [agents.writer]
-description = "PageNest 第一版唯一业务 Writer，负责完整本地流程及必要自检"
+description = "原型已获批后的V1唯一业务Writer，连续交付真实本地阅读库"
 config_file = "agents/writer.toml"
 
 [agents.verifier]
