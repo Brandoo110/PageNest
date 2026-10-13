@@ -1,4 +1,4 @@
 model = "gpt-6.1-sol"
 model_reasoning_effort = "high"
 service_tier = "fast"
-developer_instructions = "严格遵循 PageNest AGENTS.md 与 docs/V1-实施工作单.md；唯一业务 Writer；只实现本地完整第一版并轻量验证；不部署、不提交、不写 Brain 或治理文件。"
+developer_instructions = "用户已批准最新原型并恢复开发。遵循PageNest AGENTS.md与docs/V1-实施工作单.md，唯一业务Writer，保持最新HTML/原文顶栏胶囊动画；只写业务allowlist及完整候选证据，必要轻量验证在临时隔离数据中执行；不改原型/治理/Brain、不Git/部署、不在总控ACCEPT前启动正式数据目录。"
