@@ -169,3 +169,47 @@ test('skip link focuses main without replacing the current reader route',()=>{
  assert.equal(focused,true);
  assert.equal(location.hash.match(/^#read\/([0-9a-f-]{36})$/)?.[1],id,'reload can still select the same reader');
 });
+
+test('search indexes static text, literal terms, safe snippets and existing library after restart',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'pagenest-search-'));let app,origin;
+ const start=async()=>{app=createApp({dataDir:dir});await new Promise(r=>app.server.listen(0,'127.0.0.1',r));origin=`http://127.0.0.1:${app.server.address().port}`};
+ const api=async(path,method='GET',body)=>{const r=await fetch(origin+path,{method,headers:{...(method==='GET'?{}:{Origin:origin}),...(body instanceof FormData?{}:body?{'Content-Type':'application/json'}:{})},body:body instanceof FormData?body:body?JSON.stringify(body):undefined});return {status:r.status,data:await r.json()}};
+ const search=async(q,trash=0)=>{const r=await api('/api/search?q='+encodeURIComponent(q)+'&trash='+trash);assert.equal(r.status,200);return r.data.results};
+ const html=Buffer.from('<!doctype html><head><title>记忆实践</title><script>秘密脚本</script><style>.a{content:"秘密样式"}</style></head><body><h1>正文</h1><p>向量数据<span>库</span>检索</p><p>Agent MEMORY &amp; Evidence；100% reliable_id；&lt;img onerror=alert(1)&gt;</p><p hidden>隐藏属性</p><p aria-hidden="true">隐藏辅助</p><p style="display:none !important">隐藏样式</p><p style="visibility: hidden">不可见片段</p><template>模板秘密</template><noscript>无脚本秘密</noscript><div>甲</div><div>乙</div></body>');
+ const form=(bytes,id)=>{const f=new FormData();f.set('html',new Blob([bytes]),'fiction.html');f.set('requestId',id);return f};
+ try{
+  await start();const imported=await api('/api/import','POST',form(html,'search-request-001'));assert.equal(imported.status,201);const m=imported.data.material;
+  assert.equal((await search('数据库'))[0].id,m.id);
+  assert.equal((await search('memory'))[0].id,m.id);assert.equal((await search('记忆实践'))[0].id,m.id);
+  for(const q of ['秘密脚本','秘密样式','隐藏属性','隐藏辅助','隐藏样式','不可见片段','模板秘密','无脚本秘密','甲乙','NOTHING'])assert.deepEqual(await search(q),[],q);
+  assert.equal((await search('甲 乙'))[0].id,m.id);assert.equal((await search('& Evidence'))[0].id,m.id);
+  assert.equal((await search('%'))[0].id,m.id);assert.equal((await search('_'))[0].id,m.id);assert.deepEqual(await search('%_'),[]);assert.deepEqual(await search("' OR 1=1 --"),[]);
+  const snippet=(await search('onerror'))[0].snippet;assert.ok(snippet.includes('<img onerror=alert(1)>'));assert.ok(snippet.length<=182,'only bounded plain text, escaped by client');
+  assert.deepEqual(Object.keys((await search('数据库'))[0]).sort(),['id','snippet']);
+  assert.deepEqual(await search('   '),[]);assert.equal((await api('/api/search?q='+encodeURIComponent('字'.repeat(121)))).status,400);assert.equal((await api('/api/search?q=a&trash=2')).status,400);
+  await api('/api/materials/'+m.id,'PATCH',{title:'立即更新标题'});assert.equal((await search('立即更新标题'))[0].id,m.id);assert.deepEqual(await search('记忆实践'),[]);
+  await api('/api/materials/'+m.id,'PATCH',{deleted:true});assert.deepEqual(await search('数据库'),[]);assert.equal((await search('数据库',1))[0].id,m.id);
+  await api('/api/materials/'+m.id,'PATCH',{deleted:false});assert.equal((await search('数据库'))[0].id,m.id);assert.deepEqual(await search('数据库',1),[]);
+  const visual=await api('/api/import','POST',form(Buffer.from('<title>图示</title><svg></svg>'),'search-request-002'));assert.equal(visual.status,201);assert.equal((await search('图示'))[0].snippet,'');
+  const hidden=await api('/api/import','POST',form(Buffer.from('<title>旧库隐含内容</title><p hidden>旧版已接受内容</p>'),'search-request-003'));assert.equal(hidden.status,201,'retain accepted V1 import rules while excluding hidden text from search');assert.deepEqual(await search('旧版已接受内容'),[]);assert.equal((await search('旧库隐含内容'))[0].snippet,'');
+  const before=app.store.library();app.store.db.exec('DROP TABLE material_text');await app.close();app=null;await start();
+  assert.deepEqual(app.store.library(),before,'backfill preserves existing business state');assert.deepEqual(app.store.raw(m.htmlFileId),html);
+  assert.equal((await search('数据库'))[0].id,m.id);assert.equal(app.store.db.prepare('SELECT count(*) n FROM material_text').get().n,3);
+  await app.close();app=null;await start();assert.equal(app.store.db.prepare('SELECT count(*) n FROM material_text').get().n,3);assert.equal((await search('数据库'))[0].id,m.id);
+ }finally{if(app)await app.close();rmSync(dir,{recursive:true,force:true})}
+});
+
+test('search ignores obsolete responses after typing, clearing, category changes and leaving',async()=>{
+ const calls=[],renders=[];
+ const client=vm.runInNewContext(`let query='',folder='all',screen='library',searchTimer,searchRequest=0,searchState={results:[],loading:false,error:''};${clientPart('function invalidateSearch','function renderList')}\n({scheduleSearch,invalidateSearch,setContext:(q,f='all',s='library')=>{query=q;folder=f;screen=s},state:()=>searchState})`,{
+  api:path=>{const r={path,...deferred()};calls.push(r);return r.promise},
+  setTimeout:fn=>{fn();return 1},clearTimeout:()=>{},renderList:()=>renders.push(client.state())
+ });
+ client.setContext('旧');client.scheduleSearch();client.setContext('新');client.scheduleSearch();
+ calls[1].resolve({results:[{id:'new',snippet:'新结果'}]});await new Promise(r=>setImmediate(r));
+ calls[0].resolve({results:[{id:'old',snippet:'旧结果'}]});await new Promise(r=>setImmediate(r));assert.equal(client.state().results[0].id,'new');
+ client.setContext('失败');client.scheduleSearch();calls[2].reject(Error('暂不可用'));await new Promise(r=>setImmediate(r));assert.match(client.state().error,/暂不可用/);assert.equal(client.state().loading,false);
+ client.setContext('待清空');client.scheduleSearch();client.setContext('');client.scheduleSearch();calls[3].resolve({results:[{id:'old'}]});await new Promise(r=>setImmediate(r));assert.equal(client.state().results.length,0);
+ client.setContext('跨分类');client.scheduleSearch();client.setContext('','trash');client.invalidateSearch();calls[4].resolve({results:[{id:'old'}]});await new Promise(r=>setImmediate(r));assert.equal(client.state().results.length,0);
+ client.setContext('离开');client.scheduleSearch();client.setContext('离开','all','reader');client.invalidateSearch();calls[5].reject(Error('迟到错误'));await new Promise(r=>setImmediate(r));assert.equal(client.state().error,'');
+});

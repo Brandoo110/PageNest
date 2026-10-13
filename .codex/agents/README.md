@@ -21,3 +21,7 @@
 2026-10-13用户新增独立设计角色，为暂停后的单独设计授权；其自主完成并直接向用户交付，不走总控汇报/ACCEPT流程。原Writer与代码管理仍idle；设计以虚构静态原型自检，不测试或启用暂停AI候选。
 
 设计载体：“PageNest 交互与 UI 设计” `01a134df-ce9d-7431-b0bd-19975aa911b9`，PageNest项目本地任务。18:47已启动，fresh session实际`gpt-6-astra`/`medium`；期望Standard、项目配置default，actual service_tier=null，保持unknown，不把配置当运行证明。设计交付入口`prototype/ui-review/PageNest.html`和`artifacts/ui-design/交付.md`，结果直接在设计对话框给用户。
+
+## 2026-10-13 23:31 PN-SEARCH / PN-BACKUP已授权
+
+当前两功能恢复既有Writer/Git管理，职责/模型不变；唯一业务Writer在PageNest-library按两份新工作单连续实现，允许本轮必要backend/schema派生表/backup/UI。代码管理准备隔离分支、backup完整候选一次只读事务审核，最后经总控ACCEPT逐步功能PR合main。旧“本轮不提交/仅UI前端/idle”只作历史，不能阻塞本次明确授权。设计无需唤醒，AI仍paused。总控独占治理/Brain，正式库与服务仅总控在验收后接续。
