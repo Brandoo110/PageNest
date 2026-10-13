@@ -1,6 +1,6 @@
 # PageNest
 
-## 当前阶段：已批准精修UI落地与真实资料本机试用；内置AI暂停
+## 当前阶段：本机全文搜索与整库备份恢复迭代；内置AI暂停
 
 2026-10-13 已批准原型的真实本地V1通过PR3合main31e9b83d4c7f2dcd44566757ab66b954b12a29be并交本人试用。18:35用户明确暂停内置AI/DeepSeek资料生成HTML，继续之前的已有HTML导入阅读设计；HTML可由Codex在软件外生成后导入。新目标已核实paused，两个执行角色已确认停止并idle。canonical 为 `/Users/junjieli/obsidian/Brain/Projects/active/AI知识阅读库/index.md`；`docs/资料生成HTML-工作单.md`和已写候选保留为暂停方案，不构成恢复授权。原型SHA256 d0e03204ce79fe263983afacd2ca451014ba6d39508d70335ea07d85811229c7只读。
 
@@ -38,3 +38,17 @@
 - 批准设计`prototype/ui-review/PageNest.html`只读，SHA256=2f1bcc86a21a9086780b03affd785cf27e9c9790e3c34d641f6210f736e12cdb；工作单`docs/UI落地-工作单.md`。只移植外壳/布局/控件/反馈，不带模拟数据、模拟保存、重置演示、AI页面；保留真实API、R1异步身份与离页位置规则、opaque iframe隔离与CSP。
 - 验证限一份既有focused测试、受影响语法和一次虚构临时数据的真实浏览器主流程/390/320壳层。有效证据复用，不加全量/压力/复杂CI。正式资料目录由总控在ACCEPT/Git交付后启动accepted源码，原数据保留、不迁移/重置；正式服务依然loopback。
 - 用户仅授权桌面顶层4份HTML：多Agent上下文治理-原生HTML对照版.html、Codex-全局-AGENTS-指令手册.html、junjie-project-dashboard.html、Agent趋势雷达.html。总控使用本机API导入原始字节并按内容分为Agent学习/工具与规范/项目总览，桌面原文件不移动/覆盖，已有库保留。不得读取其它桌面文件或私人目录、外发资料/调用模型；私人内容/数据库不入Git。既有相同文件按hash核对后复用，不造重复。
+
+## PN-UI-IMPLEMENT已交付 · 22:50
+
+精修UI已ACCEPT_R1，经PR4合main307e9b7bc31f3fc6e710cedfa4e9baa1eec67e18；Writer/Git角色回到idle，后续等本人反馈。正式程序从accepted main副本（artifacts/UI-runtime-path.txt）运行，PID11956/session33384、127.0.0.1:4173、原.data，4份真实HTML已按3类入库且原件字节一致。原root feat/ai-html-generation dirty保留，不能从root npm start启用暂停代码；AI goal仍paused。当前事实以Brain index为准，工作单/冻结治理manifest为本轮实施历史，不自动授权继续。
+
+## PN-SEARCH / PN-BACKUP · 2026-10-13 23:31 最新授权
+
+用户明确批准全文搜索和整库导出恢复，沿用现有UI、轻量实现，完成后启动试用。该独立授权覆盖旧UI仅前端/idle限制，仅在本轮必要Store派生索引、备份/路由及UI范围启用；内置AI目标继续paused。
+
+- 唯一业务Writer继续“PageNest V1 实现”，唯一Git writer继续“PageNest 代码管理”，执行仍6.1Sol/High/Fast；不新增角色或可见任务。先codex/full-text-search完整实现/ACCEPT/PR合main，再codex/library-backup完整实现/一次事务只读审核/ACCEPT/PR合main；不按helper拆分。
+- 隔离工作树/Users/junjieli/PageNest-library，起始accepted main307e9b7bc31f3fc6e710cedfa4e9baa1eec67e18；原root dirty AI和旧PageNest-ui不切换/覆盖。精确业务allowlist/接口/验收见docs/全文搜索-工作单.md与docs/整库备份恢复-工作单.md。总控冻结治理后仅Git管理机械复制，Writer不写治理/Brain/Git。
+- 全文搜索是标题与原HTML静态正文，中文子串/英文大小写无关、命中片段，沿用全库搜索和回收范围；派生表可重建、原件保留。不引入PDF/OCR/向量/AI/新页面。备份用版本化.pagenest gzip/JSON包含原件与业务状态；恢复默认合并去重，既有资料不覆盖，完整验证和事务失败回滚。
+- 只用临时虚构库测试；正式4173/原型预览和点名4份私人HTML由总控在两功能ACCEPT及准确PR合入后以accepted源码接续。启动前停旧实例并本地保留原数据快照；允许搜索缺失索引补齐。总控可本机导出真实库并恢复到独立临时目录验证，不在正式库执行恢复、不删除/覆盖原件，不外发私人内容或入Git。
+- 验证仍focused/受影响语法与小样本一次真实浏览器；备份完整候选一次必要事务审核，证据复用。登录/同步/公开仓库/部署/模型/付费不在本轮。记录devlog→index→日志及里程碑台账/延后事项，完成后启动loopback给本人试用。

@@ -19,9 +19,10 @@ export function createApp({dataDir=resolve('.data')}={}){
   if(req.headers.origin&&req.headers.origin!==origin)throw fail(403,'不允许跨站访问。');
   if(!['GET','HEAD'].includes(req.method)&&req.headers.origin!==origin)throw fail(403,'写入必须来自当前 PageNest 页面。');
   if(req.headers['sec-fetch-site']==='cross-site')throw fail(403,'不允许跨站访问。');
-  const path=new URL(req.url,origin).pathname;let match;
+  const url=new URL(req.url,origin),path=url.pathname;let match;
   if(req.method==='GET'&&path==='/api/health')return send(res,200,{ok:true,localOnly:true});
   if(req.method==='GET'&&path==='/api/library')return send(res,200,store.library());
+  if(req.method==='GET'&&path==='/api/search'){const trash=url.searchParams.get('trash')??'0';if(!['0','1'].includes(trash))throw fail(400,'搜索范围无效。');return send(res,200,store.search(url.searchParams.get('q'),trash==='1'))}
   if(path==='/api/folders'&&req.method==='POST')return send(res,201,store.createFolder((await json(req)).name));
   if((match=path.match(new RegExp(`^/api/folders/(${uuid})$`)))){if(req.method==='PATCH')return send(res,200,store.renameFolder(match[1],(await json(req)).name));if(req.method==='DELETE')return send(res,200,store.deleteFolder(match[1]));}
   if(path==='/api/import'&&req.method==='POST'){const result=store.import(await multipart(req));return send(res,result.replayed?200:201,result)}
@@ -39,7 +40,7 @@ export function createApp({dataDir=resolve('.data')}={}){
   }
   if(req.method==='GET'&&['/','/app.js','/style.css'].includes(path)){res.writeHead(200,{'Content-Type':path.endsWith('.js')?'text/javascript; charset=utf-8':path.endsWith('.css')?'text/css; charset=utf-8':'text/html; charset=utf-8','Content-Security-Policy':SHELL_CSP,'X-Content-Type-Options':'nosniff','Cache-Control':'no-store','Referrer-Policy':'no-referrer'});return res.end(readFileSync(new URL(path==='/'?'index.html':path.slice(1),publicDir)))}
   throw fail(404,'没有找到这个页面或文件。');
- }catch(error){if(!res.headersSent)send(res,error.status||500,{error:error.status?error.message:'未保存成功，请保留表单后重试。',...(error.code?{code:error.code}:{}),...(error.materialId?{materialId:error.materialId}:{}),...(error.warnings?{warnings:error.warnings}:{})});else res.end()}});
+ }catch(error){if(!res.headersSent)send(res,error.status||500,{error:error.status?error.message:req.method==='GET'?'暂时无法完成请求，请重试。':'未保存成功，请保留表单后重试。',...(error.code?{code:error.code}:{}),...(error.materialId?{materialId:error.materialId}:{}),...(error.warnings?{warnings:error.warnings}:{})});else res.end()}});
  server.requestTimeout=120000;
  return {server,store,close:async()=>{if(closed)return;closed=true;await new Promise(r=>server.close(r));store.close()}};
 }
