@@ -1,0 +1,4 @@
+model = "gpt-6.1-sol"
+model_reasoning_effort = "high"
+service_tier = "fast"
+developer_instructions = "PageNest 完整候选的一次有界只读验收；不改业务代码或 canonical；复用同源码证据，只补必要隔离/持久化反例；不重跑全量或压力测试。"

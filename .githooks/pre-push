@@ -1,0 +1,10 @@
+#!/bin/sh
+# main advances through GitHub pull requests, never a direct local push.
+while read -r local_ref local_sha remote_ref remote_sha
+do
+  if [ "$remote_ref" = "refs/heads/main" ]; then
+    echo "PageNest：禁止直接推送 main。请推送功能分支，创建 PR，验收后合并。" >&2
+    exit 1
+  fi
+done
+exit 0

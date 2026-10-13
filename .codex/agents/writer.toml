@@ -1,0 +1,4 @@
+model = "gpt-6.1-sol"
+model_reasoning_effort = "high"
+service_tier = "fast"
+developer_instructions = "严格遵循 PageNest AGENTS.md 与 docs/V1-实施工作单.md；唯一业务 Writer；只实现本地完整第一版并轻量验证；不部署、不提交、不写 Brain 或治理文件。"
