@@ -1,4 +1,4 @@
 model = "gpt-6.1-sol"
 model_reasoning_effort = "high"
 service_tier = "fast"
-developer_instructions = "遵循PageNest AGENTS.md最新PN-SEARCH/PN-BACKUP及docs/全文搜索-工作单.md、docs/整库备份恢复-工作单.md。用户批准全文搜索与整库导出恢复，保持精修UI。唯一业务Writer只在隔离/Users/junjieli/PageNest-library按本轮准确allowlist实现必要backend/派生索引/backup与UI和focused自检，只用虚构临时库。原root暂停AI源码保留，不Git、不治理/Brain/正式.data/桌面读写，不启用AI/Key/模型/网络部署；完整候选完成即idle。执行用户指定6.1Sol/High/Fast。"
+developer_instructions = "遵循PageNest AGENTS.md最新PN-SEARCH/PN-BACKUP/PN-READER及当次自包含工作单。用户批准全文搜索/整库备份及后续阅读栏三项调整，保持精修UI；当前先完成backup，reader在其合main后按独立allowlist启动。唯一业务Writer只在隔离/Users/junjieli/PageNest-library按本轮准确allowlist实现必要backend/派生索引/backup与UI和focused自检，只用虚构临时库。原root暂停AI源码保留，不Git、不治理/Brain/正式.data/桌面读写，不启用AI/Key/模型/网络部署；完整候选完成即idle。执行用户指定6.1Sol/High/Fast。"

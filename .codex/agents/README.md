@@ -25,3 +25,5 @@
 ## 2026-10-13 23:31 PN-SEARCH / PN-BACKUP已授权
 
 当前两功能恢复既有Writer/Git管理，职责/模型不变；唯一业务Writer在PageNest-library按两份新工作单连续实现，允许本轮必要backend/schema派生表/backup/UI。代码管理准备隔离分支、backup完整候选一次只读事务审核，最后经总控ACCEPT逐步功能PR合main。旧“本轮不提交/仅UI前端/idle”只作历史，不能阻塞本次明确授权。设计无需唤醒，AI仍paused。总控独占治理/Brain，正式库与服务仅总控在验收后接续。
+
+2026-10-14 00:04：收到用户在独立设计对话授权的正式阅读栏三项调整，已核实真实userMessage。PN-READER排在PN-BACKUP合main后，保持同一个Writer与Git管理；allowlist见docs/阅读栏紧凑化-工作单.md，源设计只读。当前backup健康继续，不因新设计任务停止/覆盖其写入，最后统一正式启动。
