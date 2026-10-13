@@ -18,6 +18,14 @@ npm start
 
 阅读器沿用用户批准的原型：桌面48px / 手机约55px紧凑顶栏，HTML/原文圆润胶囊、绿色底块约260ms滑动、减少动态效果、手机44px触控区域。无底部状态栏；顶栏“从头阅读”只重置当前 HTML/TXT/原文 HTML 至顶部，或 PDF 的手动页码到1，另一视图位置不变；原文视图没有可读文件时该动作禁用。HTML 自身图文和离线交互在独立沙箱中显示。固定宽度只影响正文区域，可缩放到屏幕；缩放不修改原文件。
 
+## 章节目录
+
+HTML 阅读页的“目录”从静态 h1–h6 提取，最多200项、标题最多200字；桌面为可收起窄侧栏，手机复用分类同款抽屉，点章节后自动关闭并滚动到对应标题。跳转继续保存 HTML 阅读位置，重开可接着读；原文视图不提供主 HTML 目录。没有标题时给出空态，载入失败可重试。紧凑顶栏、HTML/原文胶囊和原件下载保留；窄屏“从头阅读”使用带可访问名称的箭头按钮。
+
+目录和展示副本由同一解析规则生成，排除 head/template/script/style/noscript、hidden、aria-hidden=true、内联 display:none / visibility:hidden 等已知不可见标题及空标题；不计算外部/样式表 CSS，不包含脚本生成的标题。原有 id 保留，输入的 data-pagenest-heading 清除后只在可导航标题添加受控标记。旧资料读取时从原件生成当前展示与目录，不改原件、数据库、位置或磁盘中的旧派生文件；每次 HTML 展示/目录请求各做一次有界文件解析，不声称大文件性能已验收。
+
+跳转消息只由 parent 发给当前 opaque iframe，channel=pagenest-reading / type=heading / 白名单 pn-heading-N。桥只检查父窗口并滚动受控标题；消息不提供业务写命令。主应用仍只接受当前 iframe 的有界 position/size，CSP 与 sandbox 不变。
+
 ## 全文搜索
 
 搜索框可匹配资料标题与原 HTML 的静态正文，中文为字面子串，英文忽略大小写；`%` / `_` 是普通字符。最长120字，空白输入显示原分类列表。搜索跨文件夹；回收站中的搜索只返回回收资料。结果显示有限纯文本片段，打开后仍从既有阅读位置继续，不跳到命中段落。
@@ -34,7 +42,7 @@ npm start
 - 展示端点响应 CSP `sandbox allow-scripts`，iframe 同样仅 `sandbox="allow-scripts"`，不给 same-origin。联网、嵌套 iframe、对象、base/form 等被禁；应用 `frame-src 'self'` 进一步阻止子页外部导航。主页面只接受当前 iframe Window、opaque/null origin、有界数字的 position/size 消息；其它消息不能触发业务操作。
 - HTML 资源依赖先提示并提供 HTTP 受限预览，用户明确确认继续。首版承诺自包含页面与简单离线交互；不保证任意网页应用、第三方脚本、外部字体/图像或所有编码和图表兼容。沙箱不代表执行脚本的 CPU/内存已经被限额。
 - PDF 使用浏览器原生预览，提供手动页码跳转、新窗口和下载。**仅保存手动跳转页码，不会自动报告或精确恢复 PDF 页内位置**。浏览器不支持内嵌 PDF 时用 fallback。TXT 安全转义为纯文本，HTML 原文采用同等隔离。
-- 无登录、同步、真机/跨设备验证、部署、公开分享、AI、批量导入、多级目录、PWA 或离线缓存承诺。服务严格 loopback；只允许 `127.0.0.1:<实际端口>` Host，同源写入必须带该 Origin，拒绝外来/null/缺失 Origin；不同来源无法跨站读写。`localhost` 别名也不开放。
+- 无登录、同步、真机/跨设备验证、部署、公开分享、AI、多级文件夹、PWA 或离线缓存承诺。服务严格 loopback；只允许 `127.0.0.1:<实际端口>` Host，同源写入必须带该 Origin，拒绝外来/null/缺失 Origin；不同来源无法跨站读写。`localhost` 别名也不开放。
 - 侧栏底部或手机分类抽屉打开“备份与恢复”，下载 .pagenest；恢复仅合并，同一 HTML 原件 hash 的资料整条跳过（包括回收条目），已有分类/来源/位置/回收状态不会覆盖。恢复前完整校验，写入失败回滚 DB 与本次新文件。关闭恢复窗口不会撤销已经确认的服务器操作；结果未确认时可核对当前库或重试同一备份。
 
 ## .pagenest 版本1
@@ -66,6 +74,7 @@ npm start
 | `PATCH /api/materials/:id` | `{title?,folderId?,sourceUrl?,deleted?}`；空 folderId 为未分类 |
 | `POST /api/materials/:id/open` | 更新最近阅读，返回 `{material,reading}` |
 | `POST /api/materials/:id/source` | multipart 可选 `source`, `sourceUrl`, `requestId`, `removeSource`, `acceptExternal`；更新当前原文关联 |
+| `GET /api/materials/:id/outline` | `{outline:[{id,label,level}]}`，主 HTML 的有界静态章节，只读 |
 | `GET /api/materials/:id/reading` | `{html?,source?}`，各含 `{scrollTop,page,updatedAt}` |
 | `PUT /api/materials/:id/reading/:view` | view=`html/source`；`{scrollTop,page}` 有界校验 |
 | `GET /api/files/:id/download` | 取 metadata 指向的 UUID 原文件，attachment |
