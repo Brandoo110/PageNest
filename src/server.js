@@ -11,7 +11,7 @@ const publicDir=new URL('../public/',import.meta.url);
 const SHELL_CSP="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
 const uuid='[0-9a-f-]{36}';
 function send(res,status,data){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(data))}
-async function json(req){let size=0;const chunks=[];for await(const c of req){size+=c.length;if(size>16384)throw fail(413,'表单数据过大。');chunks.push(c)}try{const value=JSON.parse(Buffer.concat(chunks).toString());if(!value||Array.isArray(value)||typeof value!=='object')throw Error();return value}catch{throw fail(400,'表单格式无效。')}}
+async function json(req){let size=0;const chunks=[];for await(const c of req){size+=c.length;if(size>65536)throw fail(413,'表单数据过大。');chunks.push(c)}try{const value=JSON.parse(Buffer.concat(chunks).toString());if(!value||Array.isArray(value)||typeof value!=='object')throw Error();return value}catch{throw fail(400,'表单格式无效。')}}
 export function createApp({dataDir=resolve('.data')}={}){
  const store=new Store(dataDir),previews=new Map();let closed=false;
  const server=http.createServer(async(req,res)=>{try{
@@ -33,6 +33,10 @@ export function createApp({dataDir=resolve('.data')}={}){
   if((match=path.match(new RegExp(`^/api/previews/(${uuid})$`)))&&req.method==='GET'){const p=previews.get(match[1]);if(!p||p.expires<Date.now())throw fail(404,'受限预览已过期，请重新选择文件。');res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Content-Security-Policy':HTML_CSP,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});return res.end(p.display)}
   if((match=path.match(new RegExp(`^/api/materials/(${uuid})$`)))){if(req.method==='GET')return send(res,200,store.get(match[1]));if(req.method==='PATCH')return send(res,200,store.edit(match[1],await json(req)));}
   if((match=path.match(new RegExp(`^/api/materials/(${uuid})/open$`)))&&req.method==='POST')return send(res,200,store.open(match[1]));
+  if((match=path.match(new RegExp(`^/api/materials/(${uuid})/markdown$`)))&&req.method==='GET'){
+   const m=store.get(match[1]),name=(m.title.replace(/[\r\n\0/\\]/g,' ').trim().slice(0,120)||'PageNest')+'.md';
+   res.writeHead(200,{'Content-Type':'text/markdown; charset=utf-8','Content-Disposition':`attachment; filename="PageNest-notes.md"; filename*=UTF-8''${encodeURIComponent(name).replace(/'/g,'%27')}`,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});return res.end(store.markdown(m.id));
+  }
   if((match=path.match(new RegExp(`^/api/materials/(${uuid})/outline$`)))&&req.method==='GET')return send(res,200,{outline:store.outline(match[1])});
   if((match=path.match(new RegExp(`^/api/materials/(${uuid})/source$`)))&&req.method==='POST')return send(res,200,store.source(match[1],await multipart(req)));
   if((match=path.match(new RegExp(`^/api/materials/(${uuid})/reading$`)))&&req.method==='GET')return send(res,200,store.reading(match[1]));

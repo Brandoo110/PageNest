@@ -233,11 +233,11 @@ test('backup roundtrip, merge deduplication, bounded validation and failure roll
   const replacement=new FormData();replacement.set('requestId','backup-source-004');replacement.set('source',new Blob([txt]),'same-bytes-other-name.txt');replacement.set('sourceUrl','https://example.com/new');await api(source,'/api/materials/'+a.id+'/source','POST',replacement);
   await api(source,'/api/materials/'+a.id+'/open','POST',{});for(const view of ['html','source'])await api(source,'/api/materials/'+a.id+'/reading/'+view,'PUT',{scrollTop:view==='html'?245:360,page:view==='html'?1:3});
   const download=await fetch(source.origin+'/api/backup/export');assert.equal(download.status,200);assert.match(download.headers.get('content-disposition'),/attachment.*\.pagenest/);assert.equal(download.headers.get('cache-control'),'no-store');const bytes=Buffer.from(await download.arrayBuffer());
-  const pack=JSON.parse(gunzipSync(bytes).toString());assert.equal(pack.format,'PageNest');assert.equal(pack.version,1);assert.deepEqual(Object.keys(pack).sort(),['exportedAt','files','folders','format','materials','reading','version']);assert.equal(pack.files.length,source.store.library().files.length);
+  const pack=JSON.parse(gunzipSync(bytes).toString());assert.equal(pack.format,'PageNest');assert.equal(pack.version,2);assert.deepEqual(Object.keys(pack).sort(),['exportedAt','files','folders','format','materials','reading','version']);assert.equal(pack.files.length,source.store.library().files.length);
   const assertUnchanged=()=>{assert.deepEqual(target.store.library(),before);assert.deepEqual(readdirSync(join(dirs[1],'files')).sort(),fileNames);assert.deepEqual(readdirSync(join(dirs[1],'display')).sort(),displayNames)};
   let before=target.store.library(),fileNames=readdirSync(join(dirs[1],'files')).sort(),displayNames=readdirSync(join(dirs[1],'display')).sort();
   const bad=[];const mutate=fn=>{const p=structuredClone(pack);fn(p);bad.push(gzipSync(Buffer.from(JSON.stringify(p))))};
-  bad.push(Buffer.from('bad gzip'),bytes.subarray(0,bytes.length-8));mutate(p=>p.version=2);mutate(p=>p.files[0].sha256='0'.repeat(64));mutate(p=>p.files.splice(0,1));mutate(p=>p.files.push(p.files[0]));mutate(p=>p.materials[0].folderId='aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');mutate(p=>p.reading[0].scrollTop=Infinity);mutate(p=>p.files[0].data=p.files[0].data.slice(0,-1)+'!');mutate(p=>p.files[0].size++);mutate(p=>p.materials[0].createdAt='bad time');mutate(p=>p.path='/tmp/forbidden');
+  bad.push(Buffer.from('bad gzip'),bytes.subarray(0,bytes.length-8));mutate(p=>p.version=3);mutate(p=>p.files[0].sha256='0'.repeat(64));mutate(p=>p.files.splice(0,1));mutate(p=>p.files.push(p.files[0]));mutate(p=>p.materials[0].folderId='aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');mutate(p=>p.reading[0].scrollTop=Infinity);mutate(p=>p.files[0].data=p.files[0].data.slice(0,-1)+'!');mutate(p=>p.files[0].size++);mutate(p=>p.materials[0].createdAt='bad time');mutate(p=>p.path='/tmp/forbidden');
   for(const buffer of bad){assert.equal((await api(target,'/api/backup/restore','POST',buffer)).status,400);assertUnchanged()}
   const many=structuredClone(pack);many.folders=Array(2001).fill(many.folders[0]);assert.equal((await api(target,'/api/backup/restore','POST',gzipSync(Buffer.from(JSON.stringify(many))))).status,413);assertUnchanged();
   assert.equal((await api(target,'/api/backup/restore','POST',bytes,{Origin:'https://foreign.example'})).status,403);assertUnchanged();
@@ -314,4 +314,49 @@ test('outline shares sanitized static headings with legacy display and restricts
  handlers.load();
  for(const [source,m] of [[{}, {channel:'pagenest-reading',type:'heading',id:'pn-heading-1'}],[parent,{channel:'evil',type:'heading',id:'pn-heading-1'}],[parent,{channel:'pagenest-reading',type:'business',id:'pn-heading-1'}],[parent,{channel:'pagenest-reading',type:'heading',id:'pn-heading-999'}],[parent,{channel:'pagenest-reading',type:'heading',id:'pn-heading-1\"] *'}],[parent,{channel:'pagenest-reading',type:'heading',id:1}]])handlers.message({source,data:m});
  assert.equal(jumps,0);handlers.message({source:parent,data:{channel:'pagenest-reading',type:'heading',id:'pn-heading-1'}});assert.equal(jumps,1);assert.ok(messages.every(m=>['position','size'].includes(m.type)));
+});
+
+
+test('reading metadata persists, exports literal Markdown and restores strict v1/v2 without overwriting',async()=>{
+ const dirs=Array.from({length:3},()=>mkdtempSync(join(tmpdir(),'pagenest-metadata-')));const apps=[];
+ const start=async dir=>{const app=createApp({dataDir:dir});await new Promise(r=>app.server.listen(0,'127.0.0.1',r));app.origin='http://127.0.0.1:'+app.server.address().port;apps.push(app);return app};
+ const api=async(app,path,method='GET',body)=>{const res=await fetch(app.origin+path,{method,headers:{...(method==='GET'?{}:{Origin:app.origin}),...(body instanceof FormData?{}:body?{'Content-Type':Buffer.isBuffer(body)?'application/octet-stream':'application/json'}:{})},body:body instanceof FormData||Buffer.isBuffer(body)?body:body?JSON.stringify(body):undefined});return {status:res.status,data:await res.json()}};
+ try{
+  let app=await start(dirs[0]);const target=await start(dirs[1]),old=await start(dirs[2]);const bytes=Buffer.from('<h1>记忆正文</h1>');
+  const form=new FormData();form.set('requestId','metadata-request');form.set('title','记忆 [链接] <img>\n换行');form.set('sourceUrl','https://example.com/a(b)?q=%3Cfoo%3E');form.set('html',new Blob([bytes]),'note[1].html');
+  const first=(await api(app,'/api/import','POST',form)).data.material;assert.equal(first.readingStatus,'unread');assert.equal(first.notes,'');
+  const form2=new FormData();form2.set('requestId','metadata-second');form2.set('html',new Blob(['<p>未读的第二份</p>']),'other.html');await api(app,'/api/import','POST',form2);
+  const path='/api/materials/'+first.id;
+  assert.equal((await api(app,path+'/open','POST',{})).data.material.readingStatus,'reading');await api(app,path+'/reading/html','PUT',{scrollTop:543,page:1});
+  assert.equal((await api(app,path,'PATCH',{readingStatus:'read'})).data.readingStatus,'read');assert.equal((await api(app,path+'/open','POST',{})).data.material.readingStatus,'read');
+  await api(app,path,'PATCH',{readingStatus:'unread'});assert.equal((await api(app,path+'/reading')).data.html.scrollTop,543);
+  const before=app.store.library();for(const bad of [{title:'不应部分写',readingStatus:'done'},{notes:1},{notes:'字'.repeat(8001)}]){assert.equal((await api(app,path,'PATCH',bad)).status,400);assert.deepEqual(app.store.library(),before)}
+  assert.equal((await api(app,path,'PATCH',{notes:'中'.repeat(8000)})).status,200);
+  const note='为什么保存\n<script>alert(1)</script> &amp; [链接](x)\n读后收获';await api(app,path,'PATCH',{notes:note});
+  first.title='记忆 [更新] <img>\n换行';const partial=await api(app,path,'PATCH',{title:first.title,folderId:null});assert.equal(partial.data.notes,note);assert.equal(partial.data.readingStatus,'unread');assert.equal((await api(app,path,'PATCH',{notes:'字'.repeat(22000)})).status,413);
+  const md=await fetch(app.origin+path+'/markdown');assert.equal(md.status,200);assert.match(md.headers.get('content-type'),/text\/markdown/);assert.match(md.headers.get('content-disposition'),/^attachment; filename="PageNest-notes.md"/);assert.doesNotMatch(md.headers.get('content-disposition'),/[\r\n]/);const text=await md.text();assert.match(text,/\\<script\\>/);assert.doesNotMatch(text,/<script>/);assert.ok(text.includes(String.raw`\&amp;`));assert.ok(text.includes(String.raw`note\[1\]\.html`));assert.ok(text.includes('https://example.com/a%28b%29?q=%3Cfoo%3E'));
+  assert.deepEqual(app.store.raw(first.htmlFileId),bytes);assert.equal((await api(app,'/api/search?q='+encodeURIComponent('读后收获'))).data.results.length,0,'notes do not enter HTML search');
+  await app.close();app=await start(dirs[0]);assert.equal(app.store.get(first.id).notes,note);assert.equal(app.store.get(first.id).readingStatus,'unread');
+  const backup=Buffer.from(await(await fetch(app.origin+'/api/backup/export')).arrayBuffer());const pack=JSON.parse(gunzipSync(backup));assert.equal(pack.version,2);
+  assert.deepEqual((await api(target,'/api/backup/restore','POST',backup)).data,{added:2,skipped:0});const restored=target.store.library().materials.find(m=>m.title===first.title);assert.equal(restored.notes,note);assert.equal(restored.readingStatus,'unread');assert.equal(target.store.reading(restored.id).html.scrollTop,543);
+  await api(target,'/api/materials/'+restored.id,'PATCH',{notes:'当前备注',readingStatus:'read'});const current=target.store.library();assert.deepEqual((await api(target,'/api/backup/restore','POST',backup)).data,{added:0,skipped:2});assert.deepEqual(target.store.library(),current);
+  for(const mutate of [p=>p.materials[0].readingStatus='done',p=>p.materials[0].notes=1,p=>p.materials[0].notes='字'.repeat(8001),p=>delete p.materials[0].notes,p=>p.materials[0].extra='x']){const bad=structuredClone(pack);mutate(bad);assert.equal((await api(target,'/api/backup/restore','POST',gzipSync(Buffer.from(JSON.stringify(bad))))).status,400);assert.deepEqual(target.store.library(),current)}
+  const v1=structuredClone(pack);v1.version=1;for(const m of v1.materials){delete m.readingStatus;delete m.notes}assert.deepEqual((await api(old,'/api/backup/restore','POST',gzipSync(Buffer.from(JSON.stringify(v1))))).data,{added:2,skipped:0});
+  for(const m of old.store.library().materials){assert.equal(m.notes,'');assert.equal(m.readingStatus,m.lastReadAt?'reading':'unread')}
+  const invalidV1=structuredClone(v1);invalidV1.materials[0].notes='unexpected';assert.equal((await api(old,'/api/backup/restore','POST',gzipSync(Buffer.from(JSON.stringify(invalidV1))))).status,400);
+  await target.close();const reopened=await start(dirs[1]);assert.equal(reopened.store.get(restored.id).notes,'当前备注');assert.equal(reopened.store.get(restored.id).readingStatus,'read');
+ }finally{for(const app of apps)await app.close();for(const dir of dirs)rmSync(dir,{recursive:true,force:true})}
+});
+
+test('legacy metadata migration backfills once and preserves old rows, requests, files and positions',async()=>{
+ const {Store}=await import('../src/store.js');const {DatabaseSync}=await import('node:sqlite');const dir=mkdtempSync(join(tmpdir(),'pagenest-legacy-meta-'));let store,db;
+ try{
+  store=new Store(dir);const put=(name)=>store.import({fields:{requestId:'legacy-'+name},files:{html:{name:name+'.html',buffer:Buffer.from('<h1>'+name+'</h1>')}}}).material;
+  const a=put('opened'),b=put('fresh');store.open(a.id);store.updateReading(a.id,'html',{scrollTop:321,page:2});store.close();store=null;
+  db=new DatabaseSync(join(dir,'library.sqlite'));for(const col of ['readingStatus','notes'])if(db.prepare('PRAGMA table_info(materials)').all().some(x=>x.name===col))db.exec('ALTER TABLE materials DROP COLUMN '+col);
+  const old=db.prepare('SELECT * FROM materials ORDER BY id').all();const reading=db.prepare('SELECT * FROM reading').all(),requests=db.prepare('SELECT * FROM requests').all(),files=db.prepare('SELECT * FROM files').all();db.close();db=null;
+  store=new Store(dir);assert.equal(store.get(a.id).readingStatus,'reading');assert.equal(store.get(b.id).readingStatus,'unread');assert.equal(store.get(a.id).notes,'');
+  const cols=Object.keys(old[0]).join(',');assert.deepEqual(store.db.prepare('SELECT '+cols+' FROM materials ORDER BY id').all(),old);assert.deepEqual(store.db.prepare('SELECT * FROM reading').all(),reading);assert.deepEqual(store.db.prepare('SELECT * FROM requests').all(),requests);assert.deepEqual(store.db.prepare('SELECT * FROM files').all(),files);
+  store.edit(a.id,{readingStatus:'unread',notes:'手动值'});store.edit(b.id,{readingStatus:'read'});store.close();store=new Store(dir);assert.equal(store.get(a.id).readingStatus,'unread');assert.equal(store.get(a.id).notes,'手动值');assert.equal(store.get(b.id).readingStatus,'read');assert.equal(store.reading(a.id).html.scrollTop,321);
+ }finally{if(db)db.close();if(store)store.close();rmSync(dir,{recursive:true,force:true})}
 });
