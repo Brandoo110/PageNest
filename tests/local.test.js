@@ -92,6 +92,7 @@ test('async selection ignores outdated HTML/source checks and renders current fa
   assert.equal(draft[select==='selectHTML'?'html':'source'],b);
   assert.equal(errors.length,0);
   if(select==='selectHTML')assert.equal(save.disabled,false);
+  else assert.equal(draft.sourceOpen,true,'selected source remains expanded after asynchronous rerender');
  }
  {
   const {client,requests,errors}=selectionClient(),draft=importDraft();client.setDraft(draft);
@@ -150,4 +151,21 @@ test('reading delivery retains in-flight/latest until matching ACK and supplemen
   client.queueReading('material','source',{scrollTop:80,page:3});calls[0].reject(new Error('failed old PUT'));await rejected;
   assert.equal(client.pending()[0].scrollTop,80);assert.equal(client.pending()[0].page,3);assert.equal(calls.length,1);
  }
+});
+
+test('skip link focuses main without replacing the current reader route',()=>{
+ const id='9d7c0807-cbb0-4bb2-86dd-d9d31175ce57',location={hash:'#read/'+id};
+ let handler,focused=false,prevented=false;
+ const main={focus:()=>{focused=true}};
+ const link={};
+ vm.runInNewContext(clientSource.split('\n').find(line=>line.startsWith("document.addEventListener('click'")),{
+  document:{addEventListener:(name,callback)=>{handler=callback}},
+  $:selector=>selector==='#main-content'?main:null,
+  handleClick:()=>{throw Error('skip link must not dispatch a business action')}
+ });
+ handler({target:{closest:selector=>selector==='.skip-link'?link:null},preventDefault:()=>{prevented=true}});
+ if(!prevented)location.hash='#main-content'; // Native anchor default after the click event.
+ assert.equal(location.hash,'#read/'+id);
+ assert.equal(focused,true);
+ assert.equal(location.hash.match(/^#read\/([0-9a-f-]{36})$/)?.[1],id,'reload can still select the same reader');
 });

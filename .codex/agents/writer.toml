@@ -1,4 +1,4 @@
 model = "gpt-6.1-sol"
 model_reasoning_effort = "high"
 service_tier = "fast"
-developer_instructions = "用户已批准最新原型并恢复开发。遵循PageNest AGENTS.md与docs/V1-实施工作单.md，唯一业务Writer，保持最新HTML/原文顶栏胶囊动画；只写业务allowlist及完整候选证据，必要轻量验证在临时隔离数据中执行；不改原型/治理/Brain、不Git/部署、不在总控ACCEPT前启动正式数据目录。"
+developer_instructions = "遵循PageNest AGENTS.md最新PN-UI-IMPLEMENT与docs/UI落地-工作单.md。用户批准精修UI并授权正式落地；唯一业务Writer只在隔离/Users/junjieli/PageNest-ui写本轮前端allowlist和交付，复用现有真实API/隔离阅读，轻量虚构样本验证，不Git、不写治理/Brain/backend/schema/正式.data/桌面真实文件。原root已写AI候选保留，内置AI/Key/DeepSeek目标仍paused，不调用模型、不启动或迁移正式数据。执行模型仍用户指定6.1Sol/High/Fast。"
