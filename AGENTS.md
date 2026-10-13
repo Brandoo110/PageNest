@@ -52,3 +52,11 @@
 - 全文搜索是标题与原HTML静态正文，中文子串/英文大小写无关、命中片段，沿用全库搜索和回收范围；派生表可重建、原件保留。不引入PDF/OCR/向量/AI/新页面。备份用版本化.pagenest gzip/JSON包含原件与业务状态；恢复默认合并去重，既有资料不覆盖，完整验证和事务失败回滚。
 - 只用临时虚构库测试；正式4173/原型预览和点名4份私人HTML由总控在两功能ACCEPT及准确PR合入后以accepted源码接续。启动前停旧实例并本地保留原数据快照；允许搜索缺失索引补齐。总控可本机导出真实库并恢复到独立临时目录验证，不在正式库执行恢复、不删除/覆盖原件，不外发私人内容或入Git。
 - 验证仍focused/受影响语法与小样本一次真实浏览器；备份完整候选一次必要事务审核，证据复用。登录/同步/公开仓库/部署/模型/付费不在本轮。记录devlog→index→日志及里程碑台账/延后事项，完成后启动loopback给本人试用。
+
+## PN-READER · 2026-10-14 00:04 用户跨设计对话最新授权
+
+已核对独立设计任务01a134df-ce9d-7431-b0bd-19975aa911b9的真实用户message：“可以，发给总控，让现有 Writer 把这三项改到正式程序里”。授权正式阅读顶栏48px/移动约55px、删除底部状态栏、从头阅读移顶栏并复用真实HTML/TXT/PDF位置逻辑。不是恢复AI。
+
+- 当前先连续完成健康PN-BACKUP；该阅读器小里程碑QUEUED，同一唯一Writer/Git管理，backup合main后才从最新accepted main准备codex/compact-reader，禁止与在途重叠写。三项完整候选一次轻量focused/虚构桌面与320真实流程，总控ACCEPT后第三功能PR；最后一起更新正式4173。
+- 精确allowlist/状态与验收见docs/阅读栏紧凑化-工作单.md，业务仅public/app.js、public/style.css、必要既有focused/README；backend/backup/search/治理/Brain/Git/正式.data与root暂停源码不属于Reader写入范围。原正式来源/PDF控件不误删，PDF回第一页且另一视图不变。
+- 用户批准的最新精修设计SHA=cb6317bb201e0ce21bc5ad88aee6c820fa6d56a79b50ecf74e3f8cd2d2fe22ad，设计源及交接只读，不移植模拟保存。初始原型prototype/PageNest.html仍只读；本次用户明确设计调整覆盖ui-review旧冻结hash，不能将新批准修订误报为破坏原件。角色/模型和所有本机/隐私/AI暂停边界不变。

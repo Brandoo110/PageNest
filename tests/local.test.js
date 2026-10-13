@@ -257,3 +257,28 @@ test('backup roundtrip, merge deduplication, bounded validation and failure roll
   const after=await fetch(target.origin+'/api/backup/export');assert.equal(after.status,200);const repack=JSON.parse(gunzipSync(Buffer.from(await after.arrayBuffer())).toString());assert.equal(repack.files.length,pack.files.length);
  }finally{if(source)await source.close();if(target)await target.close();for(const dir of dirs)rmSync(dir,{recursive:true,force:true})}
 });
+
+
+test('from-start resets only the current readable view and preserves latest zero through an old ACK',async()=>{
+ const make=(mime,which)=>{
+  const calls=[],posts=[],input={value:'4'},pdf={src:'/api/files/source/raw#page=4'},link={href:pdf.src},external={href:'https://example.com/raw#page=4'},scroller={scrollTop:350};
+  const elements={'#reader-frame':mime==='application/pdf'&&which==='source'?undefined:{contentWindow:{postMessage:m=>posts.push(m)}},'#pdf-page':input,'#pdf-frame':pdf,'#read-scroll':scroller,'.source-bar a[href*="/raw#page="]':external,'#pdf-open':link};
+  const client=vm.runInNewContext(`let current={id:'material',sourceFileId:'source'},view=${JSON.stringify(which)},positions={html:{scrollTop:800,page:2},source:{scrollTop:350,page:4}},readingTimer,flushPromise;const dirtyReading=new Map();${clientPart('async function api','async function refresh')}${clientPart('function queueReading','async function openReader')}${clientPart('function canReadCurrentView','async function switchView')}${clientPart('async function handleClick','document.addEventListener')}\n({fromStart:()=>handleClick({dataset:{action:'from-start'}}),queueReading,flushReading,positions,pending:()=>[...dirtyReading.values()]})`,{
+   FormData,setTimeout:()=>1,clearTimeout:()=>{},toast:()=>{},
+   $:selector=>elements[selector],fileMeta:()=>mime?{id:'source',mime}:undefined,
+   fetch:(path,options)=>{const request={path,options,...deferred()};calls.push(request);return request.promise}
+  });return {client,calls,posts,input,pdf,link,external,scroller};
+ };
+ for(const [mime,view] of [['application/pdf','source'],['text/plain','html'],['text/plain','source'],['text/html','source']]){
+  const {client,calls,posts,input,pdf,link,external}=make(mime,view),other=view==='html'?'source':'html',before={...client.positions[other]};
+  const resetting=client.fromStart();if(mime==='application/pdf')assert.equal(client.positions.source.page,1);assert.equal(calls.length,1);calls[0].resolve(ack());await resetting;
+  assert.equal(client.positions[view].scrollTop,0);assert.equal(client.positions[other].scrollTop,before.scrollTop);assert.equal(client.positions[other].page,before.page);assert.equal(calls[0].path,'/api/materials/material/reading/'+view);assert.equal(JSON.parse(calls[0].options.body).scrollTop,0);
+  if(mime==='application/pdf'){assert.equal(external.href,'https://example.com/raw#page=4','source link must not be changed');assert.equal(input.value,'1');assert.match(pdf.src,/#page=1$/);assert.match(link.href,/#page=1$/);assert.equal(JSON.parse(calls[0].options.body).page,1)}else{assert.equal(client.positions[view].page,view==='html'?2:4);assert.equal(posts.at(-1).scrollTop,0)}
+ }
+ {
+  const {client,calls}=make(null,'source');await client.fromStart();assert.equal(calls.length,0);assert.equal(client.positions.source.scrollTop,350);
+ }
+ {
+  const {client,calls}=make('text/plain','html');client.queueReading('material','html',{scrollTop:800,page:2});const old=client.flushReading(),resetting=client.fromStart();assert.equal(client.pending()[0].scrollTop,0);calls[0].resolve(ack());await new Promise(r=>setImmediate(r));assert.equal(client.pending()[0].scrollTop,0);assert.equal(JSON.parse(calls[1].options.body).scrollTop,0);calls[1].resolve(ack());await Promise.all([old,resetting]);assert.equal(client.pending().length,0);assert.equal(client.positions.source.scrollTop,350);
+ }
+});
