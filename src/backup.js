@@ -9,7 +9,7 @@ function shape(value,keys){ensure(value&&typeof value==='object'&&!Array.isArray
 function date(value,nullable=false){if(nullable&&value===null)return;ensure(typeof value==='string'&&value.length===24&&Number.isFinite(Date.parse(value))&&new Date(value).toISOString()===value,'备份日期无效。')}
 function label(value,max){ensure(typeof value==='string'&&value.length>0&&value.length<=max&&value.trim()===value,'备份名称或标题无效。')}
 export function validateBackup(pack){
- shape(pack,['format','version','exportedAt','folders','materials','files','reading']);ensure(pack.format==='PageNest'&&pack.version===1,'不支持这个备份格式或版本。');date(pack.exportedAt);
+ shape(pack,['format','version','exportedAt','folders','materials','files','reading']);ensure(pack.format==='PageNest'&&[1,2].includes(pack.version),'不支持这个备份格式或版本。');date(pack.exportedAt);
  const groups=[pack.folders,pack.materials,pack.files,pack.reading];ensure(groups.every(Array.isArray),'备份记录无效。');ensure(groups.reduce((n,a)=>n+a.length,0)<=RECORD_LIMIT,'备份记录总数超过 2000。',413);
  const ids=new Set(),folderIds=new Set(),names=new Set(),files=new Map(),buffers=new Map(),materialIds=new Set(),readKeys=new Set();let total=0;
  const id=value=>{ensure(typeof value==='string'&&uuid.test(value)&&!ids.has(value),'备份 ID 无效或重复。');ids.add(value)};
@@ -20,11 +20,11 @@ export function validateBackup(pack){
   const buffer=Buffer.from(file.data,'base64');ensure(buffer.length===file.size&&buffer.toString('base64')===file.data,'备份文件须为严格 base64，且长度一致。');ensure(createHash('sha256').update(buffer).digest('hex')===file.sha256,'备份文件 hash 不一致。');ensure(validateFile({name:file.name,buffer})===file.mime,'备份文件类型与原件不一致。');files.set(file.id,file);buffers.set(file.id,buffer);
  }
  for(const m of pack.materials){
-  shape(m,['id','title','folderId','htmlFileId','sourceFileId','sourceUrl','deletedAt','createdAt','lastReadAt']);id(m.id);materialIds.add(m.id);label(m.title,120);ensure(m.folderId===null||folderIds.has(m.folderId),'备份分类引用无效。');const html=files.get(m.htmlFileId);ensure(html?.mime==='text/html','备份缺少资料 HTML 原件。');ensure(html.size<=HTML_LIMIT,'备份资料 HTML 超过 20 MiB。',413);ensure(m.sourceFileId===null||files.has(m.sourceFileId),'备份原文引用无效。');ensure(typeof m.sourceUrl==='string'&&m.sourceUrl.length<=4096&&m.sourceUrl.trim()===m.sourceUrl,'备份来源链接无效。');if(m.sourceUrl){let u;try{u=new URL(m.sourceUrl)}catch{}ensure(u?.protocol==='https:'&&u.hostname,'备份来源链接须为 HTTPS。')}
+  shape(m,['id','title','folderId','htmlFileId','sourceFileId','sourceUrl','deletedAt','createdAt','lastReadAt',...(pack.version===2?['readingStatus','notes']:[])]);if(pack.version===2){ensure(typeof m.readingStatus==='string'&&['unread','reading','read'].includes(m.readingStatus),'备份阅读状态无效。');ensure(typeof m.notes==='string'&&m.notes.length<=8000,'备份备注须为不超过8000字的纯文本。')}id(m.id);materialIds.add(m.id);label(m.title,120);ensure(m.folderId===null||folderIds.has(m.folderId),'备份分类引用无效。');const html=files.get(m.htmlFileId);ensure(html?.mime==='text/html','备份缺少资料 HTML 原件。');ensure(html.size<=HTML_LIMIT,'备份资料 HTML 超过 20 MiB。',413);ensure(m.sourceFileId===null||files.has(m.sourceFileId),'备份原文引用无效。');ensure(typeof m.sourceUrl==='string'&&m.sourceUrl.length<=4096&&m.sourceUrl.trim()===m.sourceUrl,'备份来源链接无效。');if(m.sourceUrl){let u;try{u=new URL(m.sourceUrl)}catch{}ensure(u?.protocol==='https:'&&u.hostname,'备份来源链接须为 HTTPS。')}
   date(m.createdAt);date(m.lastReadAt,true);date(m.deletedAt,true);
  }
  for(const r of pack.reading){shape(r,['materialId','view','scrollTop','page','updatedAt']);ensure(typeof r.materialId==='string'&&typeof r.view==='string','备份阅读引用无效。');const key=r.materialId+':'+r.view;ensure(materialIds.has(r.materialId)&&['html','source'].includes(r.view)&&!readKeys.has(key),'备份阅读引用无效或重复。');readKeys.add(key);ensure(Number.isFinite(r.scrollTop)&&r.scrollTop>=0&&r.scrollTop<=10000000&&Number.isInteger(r.page)&&r.page>=1&&r.page<=100000,'备份阅读位置无效。');date(r.updatedAt)}
- return {pack,buffers};
+ return {pack:pack.version===1?{...pack,materials:pack.materials.map(m=>({...m,readingStatus:m.lastReadAt?'reading':'unread',notes:''}))}:pack,buffers};
 }
 export function encodeBackup(pack){
  validateBackup(pack);const json=Buffer.from(JSON.stringify(pack));ensure(json.length<=JSON_LIMIT,'备份 JSON 超过 150 MiB。',413);const compressed=gzipSync(json);ensure(compressed.length<=BACKUP_LIMIT,'压缩备份超过 100 MiB。',413);return compressed;
