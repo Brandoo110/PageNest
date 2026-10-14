@@ -13,7 +13,7 @@ PageNest is a local-first HTML reading library. Import articles, study notes, or
 ## Features
 
 - **Import and organize**: drag in one HTML file or a batch, choose a shared folder, and skip duplicates. Original PDF, TXT, or HTML attachments and HTTPS source links are optional.
-- **Folder management**: use the visible ⋯ beside a custom folder in the sidebar or category drawer to rename or delete it. Deleting a folder moves its materials to Uncategorized and preserves their contents; system categories cannot be renamed or deleted.
+- **Folder management**: use the visible ⋯ beside a custom folder in the sidebar or category drawer to open a small menu beside that button. Rename and delete keep their existing input and confirmation dialogs. Deleting a folder moves its materials to Uncategorized and preserves their contents; system categories cannot be renamed or deleted.
 - **Full-text search**: search titles and static HTML text, with highlighted keywords in result titles and snippets.
 - **Resume reading**: save your reading position, navigate with a collapsible table of contents, and switch between HTML and the original source within the same entry.
 - **Reading status**: filter by unread, reading, or read alongside folders and search results.

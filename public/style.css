@@ -49,3 +49,10 @@ mark.search-highlight{background:#f5e5af;color:#285d49;border-radius:3px;font:in
 
 /* Custom folder actions stay visible in both the sidebar and category drawer. */
 .nav-label{min-width:0;flex:1}.folder-nav-name{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.navitem>.count{flex-shrink:0}.folder-nav-row{display:flex;align-items:center;min-width:0;gap:0;border-radius:8px;margin:3px 0}.folder-nav-row.active{background:#dfe8db}.folder-nav-row>.navitem{flex:1;min-width:0;width:auto;margin:0;padding:9px 8px 9px 13px;background:transparent;gap:7px}.folder-nav-row .nav-label{gap:9px}.folder-nav-menu{display:flex;align-items:center;justify-content:center;flex:0 0 44px;min-width:44px;min-height:44px;padding:4px;border-radius:8px;font-size:21px;line-height:1;color:#67796a}.folder-nav-menu:hover{background:#e4ebdf;color:var(--green)}.folder-nav-row.active .folder-nav-menu{color:var(--green)}.folder-action-name{overflow-wrap:anywhere;margin:8px 0 14px}
+
+/* Native folder popover stays in its trigger's sidebar or modal drawer. */
+.folder-popover{position:fixed;inset:auto;margin:0;width:180px;max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);overflow:auto;padding:4px;border:1px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink);box-shadow:0 8px 28px #253d2924}
+.folder-popover:popover-open{display:grid;gap:2px}
+.folder-popover::backdrop{background:transparent;pointer-events:none}
+.folder-popover>button{display:block;width:100%;min-height:44px;text-align:left;padding:9px 12px;border:0;border-radius:7px;background:transparent;font-size:13px;line-height:1.6}
+.folder-popover>button:hover,.folder-popover>button:focus-visible{background:var(--soft)}
