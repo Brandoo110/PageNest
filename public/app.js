@@ -20,18 +20,26 @@ const getItem=id=>libraryData.materials.find(x=>x.id===id);
 const folderLabel=()=>({all:'全部资料',recent:'最近阅读',uncategorized:blank,trash:'回收站'}[folder]||folderName(folder));
 const isCustom=()=>libraryData.folders.some(f=>f.id===folder);
 function toast(message,undo=null){clearTimeout(toastTimer);undoAction=undo;$('#toast').innerHTML=esc(message)+(undo?'<button data-action="undo">撤销</button>':'');$('#toast').hidden=false;toastTimer=setTimeout(()=>{$('#toast').hidden=true;undoAction=null},4500)}
-function openDialog(html,drawer=false){if(folderAction?.busy)return;if(notesEditor){if(notesEditor.busy){notesFeedback(notesEditor,'正在保存，请等待结果后关闭。');return}if(notesEditor.draft!==notesEditor.saved){showNotesPrompt(()=>{closeDialog(true);openDialog(html,drawer)});return}notesEditor=null}const d=$('#dialog');if(d.open)d.close();d.classList.toggle('drawer',drawer);$('#dialog-body').innerHTML=html;d.showModal()}
-function closeDialog(force=false){if(folderAction?.busy)return false;if(notesEditor&&!force){if(notesEditor.busy){notesFeedback(notesEditor,'正在保存，请等待结果后关闭。');return false}if(notesEditor.draft!==notesEditor.saved){showNotesPrompt(()=>closeDialog(true));return false}}notesEditor=null;if($('#dialog').open)$('#dialog').close();$('#dialog-body').replaceChildren();return true}
-$('#dialog').addEventListener('close',()=>{if(!$('#dialog').open)$('#dialog-body').replaceChildren()});
+function openDialog(html,drawer=false){if(folderAction?.busy)return;closeFolderPopover();if(notesEditor){if(notesEditor.busy){notesFeedback(notesEditor,'正在保存，请等待结果后关闭。');return}if(notesEditor.draft!==notesEditor.saved){showNotesPrompt(()=>{closeDialog(true);openDialog(html,drawer)});return}notesEditor=null}const d=$('#dialog');if(d.open)d.close();d.classList.toggle('drawer',drawer);$('#dialog-body').innerHTML=html;d.showModal()}
+function closeDialog(force=false){if(folderAction?.busy)return false;closeFolderPopover();if(notesEditor&&!force){if(notesEditor.busy){notesFeedback(notesEditor,'正在保存，请等待结果后关闭。');return false}if(notesEditor.draft!==notesEditor.saved){showNotesPrompt(()=>closeDialog(true));return false}}notesEditor=null;if($('#dialog').open)$('#dialog').close();$('#dialog-body').replaceChildren();return true}
+$('#dialog').addEventListener('close',()=>{if(!$('#dialog').open){closeFolderPopover();$('#dialog-body').replaceChildren()}});
 function dialogError(message){let el=$('#dialog-error');if(!el){el=document.createElement('p');el.id='dialog-error';el.className='error';el.setAttribute('role','alert');$('#dialog-body').append(el)}el.textContent=message}
 async function action(button,work,error=dialogError){button.disabled=true;try{await work()}catch(e){error(e.message)}finally{button.disabled=false}}
 function selectedItems(target=folder){return libraryData.materials.filter(x=>target==='trash'?x.deletedAt:!x.deletedAt&&(target==='all'||(target==='recent'?x.lastReadAt:target==='uncategorized'?!x.folderId:x.folderId===target)))}
 function icon(name){const paths={library:'<rect x="3" y="3" width="7" height="18" rx="1"/><path d="M14 3l5-1 3 18-5 1zM5 7h3M5 17h3"/>',clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',inbox:'<path d="M4 4h16l2 12v4H2v-4zM2 15h6l2 3h4l2-3h6"/>',folder:'<path d="M3 6a2 2 0 012-2h5l2 3h7a2 2 0 012 2v10H3z"/>',trash:'<path d="M3 6h18M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7M14 10v7"/>',menu:'<path d="M4 6h16M4 12h16M4 18h16"/>'};return `<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true">${paths[name]}</svg>`}
-function nav(){const entries=[['all','全部资料'],['recent','最近阅读'],['uncategorized',blank],...libraryData.folders.map(f=>[f.id,f.name])];return entries.map(([id,name],i)=>{const custom=i>=3;const select=`<button class="navitem ${folder===id?'active':''}" data-folder="${esc(id)}"><span class="nav-label">${icon(i===0?'library':i===1?'clock':i===2?'inbox':'folder')}<span class="folder-nav-name" title="${esc(name)}">${esc(name)}</span></span><span class="count">${selectedItems(id).length}</span></button>`;return `${i===3?'<div class="section-label">我的文件夹</div>':''}${custom?`<div class="folder-nav-row ${folder===id?'active':''}">${select}<button class="quiet folder-nav-menu" data-folder-menu="${esc(id)}" aria-label="管理文件夹：${esc(name)}" aria-haspopup="dialog">⋯</button></div>`:select}`}).join('')}
+let folderNavSequence=0;
+function nav(){
+ const scope='folder-nav-'+(++folderNavSequence),entries=[['all','全部资料'],['recent','最近阅读'],['uncategorized',blank],...libraryData.folders.map(f=>[f.id,f.name])];
+ return entries.map(([id,name],i)=>{
+  const custom=i>=3,menuId=scope+'-'+i;
+  const select=`<button class="navitem ${folder===id?'active':''}" data-folder="${esc(id)}"><span class="nav-label">${icon(i===0?'library':i===1?'clock':i===2?'inbox':'folder')}<span class="folder-nav-name" title="${esc(name)}">${esc(name)}</span></span><span class="count">${selectedItems(id).length}</span></button>`;
+  return `${i===3?'<div class="section-label">我的文件夹</div>':''}${custom?`<div class="folder-nav-row ${folder===id?'active':''}">${select}<button class="quiet folder-nav-menu" data-folder-menu="${esc(id)}" popovertarget="${menuId}" aria-controls="${menuId}" aria-expanded="false" aria-label="管理文件夹：${esc(name)}" aria-haspopup="menu">⋯</button><div id="${menuId}" class="folder-popover" popover="auto" role="menu" aria-label="管理文件夹：${esc(name)}"><button role="menuitem" data-folder-operation="rename">重命名</button><button role="menuitem" class="danger" data-folder-operation="delete">删除文件夹</button></div></div>`:select}`;
+ }).join('');
+}
 function trashNav(){return `<button class="navitem ${folder==='trash'?'active':''}" data-folder="trash"><span class="nav-label">${icon('trash')}回收站</span><span class="count">${selectedItems('trash').length}</span></button>`}
 function options(id){return `<option value="">未分类</option>`+libraryData.folders.map(f=>`<option value="${f.id}" ${id===f.id?'selected':''}>${esc(f.name)}</option>`).join('')}
 function library(){invalidateSearch();clearTimeout(frameTimeout);screen='library';current=null;document.title='PageNest · '+folderLabel();history.replaceState({folder,query,listY},'','#library');$('#screen').innerHTML=`<div class="shell"><aside class="sidebar"><div class="brand"><i class="brand-mark" aria-hidden="true"></i>PageNest</div>${nav()}<button class="quiet" data-action="new-folder">＋ 新建文件夹</button><div class="sidebar-bottom">${trashNav()}<button class="navitem backup-entry" data-action="backup">备份与恢复</button><div class="demo-controls"><p class="small muted" style="padding:8px 14px">本机保存 · 无账号与同步</p></div></div></aside><main class="content" id="main-content" tabindex="-1"><div class="content-top"><div class="grow"><div class="title-row"><h1>${esc(folderLabel())}</h1><button class="mobile-only quiet icon-button" data-action="categories" aria-label="打开分类">${icon('menu')}</button></div><p class="subtitle">${selectedItems().length} 份资料${folder==='trash'?' · 可随时恢复':' · 留在这里，随时接着读'}</p></div>${folder!=='trash'?'<button class="primary" data-action="import">＋ 导入 HTML</button>':''}</div><div class="search-wrap"><i class="search-icon" aria-hidden="true"></i><input id="search" type="search" maxlength="120" placeholder="搜索标题和正文" aria-label="搜索标题和正文" value="${esc(query)}"></div>${statusFilters()}${isCustom()?'<div class="folder-toolbar row"><button class="quiet" data-action="rename-folder">重命名</button><button class="quiet" data-action="delete-folder">删除文件夹</button></div>':''}<div class="list-heading"><span id="list-label">${query.trim()?'全部资料的搜索结果':'资料'}</span><span>本机资料</span></div><div id="list"></div><div class="library-footer"><span>HTML 与原文，收在同一处。</span><span class="desktop-hint">仅保存在此电脑</span></div></main></div>`;renderList();$('#search').oninput=e=>{query=e.target.value;listY=0;history.replaceState({folder,query,listY},'','#library');scheduleSearch();$('#list-label').textContent=query.trim()?'全部资料的搜索结果':'资料'};if(query.trim())scheduleSearch(0);window.scrollTo(0,listY)}
-function invalidateSearch(){clearTimeout(searchTimer);searchRequest++;searchState={results:[],loading:false,error:''}}
+function invalidateSearch(){closeFolderPopover();clearTimeout(searchTimer);searchRequest++;searchState={results:[],loading:false,error:''}}
 function scheduleSearch(delay=180){
  invalidateSearch();if(!query.trim()){renderList();return}
  searchState.loading=true;renderList();const request=searchRequest,term=query.trim(),trash=folder==='trash';
@@ -52,10 +60,51 @@ function withFolderDialog(open){
  if(notesEditor){if(notesEditor.busy){notesFeedback(notesEditor,'正在保存，请等待结果后继续。');return}if(notesEditor.draft!==notesEditor.saved){showNotesPrompt(()=>{closeDialog(true);open()});return}}
  open();
 }
-function folderMenu(id){
- const target=folderTarget(id);if(!target)return;
- withFolderDialog(()=>{openDialog(`<section id="folder-action"><h2 id="dialog-title">文件夹操作</h2><p class="small muted folder-action-name">${esc(target.name)}</p><div class="menu"><button id="folder-menu-rename">重命名</button><button id="folder-menu-delete" class="danger">删除文件夹</button></div><div class="actions"><button data-action="close-dialog">关闭</button></div></section>`);folderAction={root:$('#folder-action'),busy:false};$('#folder-menu-rename').onclick=()=>renameFolder(target);$('#folder-menu-delete').onclick=()=>deleteFolder(target)});
+let folderPopover=null;
+function closeFolderPopover(restoreFocus=false){
+ const ctx=folderPopover;if(!ctx)return;folderPopover=null;
+ ctx.button.setAttribute('aria-expanded','false');
+ if(ctx.popover.isConnected&&ctx.popover.matches(':popover-open'))ctx.popover.hidePopover();
+ if(restoreFocus&&ctx.button.isConnected)ctx.button.focus({preventScroll:true});
 }
+function positionFolderPopover(ctx){
+ const anchor=ctx.button.getBoundingClientRect(),box=ctx.popover.getBoundingClientRect(),margin=8,gap=5;
+ const left=Math.max(margin,Math.min(anchor.right-box.width,window.innerWidth-box.width-margin));
+ const below=anchor.bottom+gap,top=below+box.height<=window.innerHeight-margin?below:anchor.top-box.height-gap;
+ ctx.popover.style.left=left+'px';ctx.popover.style.top=Math.max(margin,Math.min(top,window.innerHeight-box.height-margin))+'px';
+}
+function folderMenu(button,edge=null){
+ if(folderAction?.busy)return;
+ if(folderPopover?.button===button){if(edge)folderPopover.popover.querySelector(edge==='last'?'[role="menuitem"]:last-child':'[role="menuitem"]').focus({preventScroll:true});else closeFolderPopover(true);return}
+ closeFolderPopover();const target=folderTarget(button.dataset.folderMenu),popover=document.getElementById(button.getAttribute('popovertarget'));
+ if(!target||!popover)return;
+ const ctx=folderPopover={target,button,popover};
+ popover.onbeforetoggle=event=>{button.setAttribute('aria-expanded',String(event.newState==='open'));if(event.newState==='closed'&&folderPopover===ctx)folderPopover=null};
+ popover.onkeydown=event=>{
+  if(event.key==='Tab'){closeFolderPopover(true);return}
+  const items=Array.from(popover.querySelectorAll('[role="menuitem"]'));let index=items.indexOf(document.activeElement);
+  if(event.key==='ArrowDown')index=(index+1)%items.length;
+  else if(event.key==='ArrowUp')index=(index+items.length-1)%items.length;
+  else if(event.key==='Home')index=0;else if(event.key==='End')index=items.length-1;else return;
+  event.preventDefault();items[index].focus();
+ };
+ popover.style.left='8px';popover.style.top='8px';popover.showPopover({source:button});positionFolderPopover(ctx);
+ popover.querySelector(edge==='last'?'[role="menuitem"]:last-child':'[role="menuitem"]').focus({preventScroll:true});
+}
+function chooseFolderOperation(button){
+ const ctx=folderPopover;if(!ctx||!ctx.popover.contains(button))return;
+ const {target}=ctx;closeFolderPopover();
+ if(button.dataset.folderOperation==='rename')renameFolder(target);else if(button.dataset.folderOperation==='delete')deleteFolder(target);
+}
+document.addEventListener('keydown',event=>{
+ if(event.key==='Escape'&&folderPopover){event.preventDefault();event.stopPropagation();closeFolderPopover(true);return}
+ const button=event.target.closest('[data-folder-menu]');
+ if(button&&(event.key==='ArrowDown'||event.key==='ArrowUp')){event.preventDefault();folderMenu(button,event.key==='ArrowUp'?'last':'first')}
+},true);
+document.addEventListener('scroll',()=>closeFolderPopover(),{capture:true,passive:true});
+window.addEventListener('resize',()=>closeFolderPopover());
+window.addEventListener('pagehide',()=>closeFolderPopover());
+window.addEventListener('popstate',()=>closeFolderPopover());
 function renameFolder(target=folder){const snapshot=typeof target==='string'?folderTarget(target):target;if(snapshot)editFolder(snapshot,false)}
 function deleteFolder(target=folder){const snapshot=typeof target==='string'?folderTarget(target):target;if(snapshot)editFolder(snapshot,true)}
 function editFolder(target,deleting){
@@ -85,7 +134,7 @@ function editFolder(target,deleting){
   if(input){input.onkeydown=event=>{if(event.key==='Enter'&&!event.isComposing){event.preventDefault();confirm.click()}};input.focus();input.select()}
  });
 }
-$('#dialog').addEventListener('cancel',event=>{if(folderAction?.busy)event.preventDefault()});
+$('#dialog').addEventListener('cancel',event=>{if(folderPopover){event.preventDefault();closeFolderPopover(true)}else if(folderAction?.busy)event.preventDefault()});
 
 function moveItem(id){const x=getItem(id);openDialog(`<h2 id="dialog-title">移动到文件夹</h2><p class="small muted">${esc(x.title)}</p><div class="menu">${[{id:'',name:blank},...libraryData.folders].map(f=>`<button data-target-folder="${f.id}" data-target-id="${id}">${esc(f.name)}${f.id===(x.folderId||'')?' ✓':''}</button>`).join('')}</div><div class="actions"><button data-action="close-dialog">取消</button></div>`)}
 function acceptMaterial(material){
@@ -381,10 +430,10 @@ function categories(){openDialog(`<div class="row between"><div class="brand"><i
 function trashItem(id){const x=getItem(id);openDialog(`<h2 id="dialog-title">移到回收站？</h2><p>“${esc(x.title)}”可以在回收站恢复。</p><div class="row actions"><button id="trash-confirm" class="danger">移到回收站</button><button data-action="close-dialog">取消</button></div>`);$('#trash-confirm').onclick=e=>action(e.target,async()=>{await flushReading();await api('/api/materials/'+id,'PATCH',{deleted:true});await refresh();closeDialog();library();toast('已移入回收站',()=>restoreItem(id))})}
 async function restoreItem(id){await api('/api/materials/'+id,'PATCH',{deleted:false});await refresh();library();toast('资料已恢复')}
 async function limitedPreview(){const d=screen==='import'?draft:sourceDraft;if(!d?.previewUrl)return;if(screen!=='import'){if(!$('#source-preview')){const iframe=document.createElement('iframe');iframe.id='source-preview';iframe.className='preview-frame';iframe.title='原文受限预览';iframe.setAttribute('sandbox','allow-scripts');iframe.src=d.previewUrl;$('#source-warning').append(iframe)}return}openDialog(`<h2 id="dialog-title">受限预览</h2><p class="small muted">其他资源与联网已禁用；确认内容可读后再继续。</p><iframe class="preview-frame" title="受限预览" sandbox="allow-scripts" src="${esc(d.previewUrl)}"></iframe><button data-action="close-dialog">返回填写</button>`)}
-async function handleClick(b){const d=b.dataset;if(d.folderMenu){folderMenu(d.folderMenu);return}if(d.statusFilter){filterStatus(d.statusFilter);return}if(d.readingStatus){await setReadingStatus(d.id,d.readingStatus,b);return}if(d.notes){await editNotes(d.notes);return}if(d.heading){jumpHeading(d.heading);return}if(d.folder){await flushReading();folder=d.folder;query='';listY=0;closeDialog();library();return}if(d.open){await openReader(d.open);return}if(d.menu){itemMenu(d.menu);return}if(d.move){moveItem(d.move);return}if(d.edit){editItem(d.edit);return}if(d.source){addSource(d.source);return}if(d.trash){trashItem(d.trash);return}if(d.restore){await restoreItem(d.restore);return}if(Object.hasOwn(d,'targetFolder')){const x=getItem(d.targetId),old=x.folderId;const updated=await api('/api/materials/'+x.id,'PATCH',{folderId:d.targetFolder||null});await refresh();closeDialog();if(screen==='reader'){current=updated;reader()}else library();toast('已移到 '+folderName(updated.folderId),async()=>{await api('/api/materials/'+x.id,'PATCH',{folderId:libraryData.folders.some(f=>f.id===old)?old:null});await refresh();if(screen==='reader'){current=getItem(x.id);reader()}else library();toast('已撤销移动')});return}if(d.view){await switchView(d.view);return}
+async function handleClick(b){const d=b.dataset;if(d.folderMenu){folderMenu(b);return}if(d.folderOperation){chooseFolderOperation(b);return}if(d.statusFilter){filterStatus(d.statusFilter);return}if(d.readingStatus){await setReadingStatus(d.id,d.readingStatus,b);return}if(d.notes){await editNotes(d.notes);return}if(d.heading){jumpHeading(d.heading);return}if(d.folder){await flushReading();folder=d.folder;query='';listY=0;closeDialog();library();return}if(d.open){await openReader(d.open);return}if(d.menu){itemMenu(d.menu);return}if(d.move){moveItem(d.move);return}if(d.edit){editItem(d.edit);return}if(d.source){addSource(d.source);return}if(d.trash){trashItem(d.trash);return}if(d.restore){await restoreItem(d.restore);return}if(Object.hasOwn(d,'targetFolder')){const x=getItem(d.targetId),old=x.folderId;const updated=await api('/api/materials/'+x.id,'PATCH',{folderId:d.targetFolder||null});await refresh();closeDialog();if(screen==='reader'){current=updated;reader()}else library();toast('已移到 '+folderName(updated.folderId),async()=>{await api('/api/materials/'+x.id,'PATCH',{folderId:libraryData.folders.some(f=>f.id===old)?old:null});await refresh();if(screen==='reader'){current=getItem(x.id);reader()}else library();toast('已撤销移动')});return}if(d.view){await switchView(d.view);return}
  switch(d.action){case'clear-status-filter':filterStatus('all');break;case'outline-toggle':toggleOutline();break;case'outline-retry':await loadOutline(outlineState);break;case'new-folder':createFolder();break;case'draft-folder':createFolder(true);break;case'close-dialog':closeDialog();break;case'import':startImport();break;case'choose-html':$('#html-file').click();break;case'choose-source':$('#source-file').click();break;case'cancel-import':cancelImport();break;case'discard-import':draft=null;closeDialog();library();break;case'remove-draft-source':draft.source=null;draft.dirty=true;renderImport();break;case'clear-search':query='';library();break;case'retry-search':scheduleSearch(0);break;case'back':await flushReading();await refresh();library();break;case'fit':fit=!fit;applyFit();break;case'add-source':addSource();break;case'categories':categories();break;case'backup':backupDialog();break;case'batch-save':await saveBatch();break;case'batch-retry':await retryBatch(Number(d.index));break;case'batch-preview':await previewBatch(Number(d.index));break;case'batch-stop':stopBatch();break;case'batch-back':backFromBatch();break;case'rename-folder':renameFolder();break;case'delete-folder':deleteFolder();break;case'more':itemMenu(current.id);break;case'limited-preview':await limitedPreview();break;case'reload-frame':mountReading();const frame=$('#reader-frame');if(frame)frame.src=frame.src;break;case'from-start':await fromStart();break;case'pdf-jump':{const page=Number($('#pdf-page').value);if(!Number.isInteger(page)||page<1||page>100000)throw Error('请填写有效页码。');positions.source.page=page;queueReading(current.id,'source',positions.source);$('#pdf-frame').src='/api/files/'+current.sourceFileId+'/raw#page='+page;await flushReading();break}case'undo':{const undo=undoAction;undoAction=null;$('#toast').hidden=true;if(undo)await undo();break}}
 }
-document.addEventListener('click',e=>{if(e.target.closest('.skip-link')){e.preventDefault();$('#main-content')?.focus();return}const b=e.target.closest('button');if(!b||b.disabled)return;handleClick(b).catch(error=>{if($('#dialog').open)dialogError(error.message);else toast(error.message)})});
+document.addEventListener('click',e=>{if(e.target.closest('.skip-link')){e.preventDefault();$('#main-content')?.focus();return}const b=e.target.closest('button');if(!b||b.disabled)return;if(b.dataset.folderMenu)e.preventDefault();else if(folderPopover&&!folderPopover.popover.contains(b))closeFolderPopover();handleClick(b).catch(error=>{if($('#dialog').open)dialogError(error.message);else toast(error.message)})});
 const fileDrop=e=>Array.from(e.dataTransfer?.types||[]).includes('Files')&&!e.target.closest('input[type=file]');
 document.addEventListener('dragover',e=>{if(fileDrop(e))e.preventDefault()});
 document.addEventListener('drop',e=>{if(!fileDrop(e))return;e.preventDefault();if($('#dialog').open||batchDraft?.busy||draft?.saving)return;const files=Array.from(e.dataTransfer.files);if(screen==='library')startImport();if(['library','import','batch-import'].includes(screen))chooseHTMLFiles(files)});
