@@ -1,0 +1,35 @@
+appId: com.pagenest.local
+productName: PageNest
+asar: true
+compression: normal
+npmRebuild: false
+publish: null
+directories:
+  output: artifacts/desktop/build
+files:
+  - package.json
+  - desktop/main.cjs
+  - desktop/policy.cjs
+  - desktop/icon.png
+  - desktop/icon.icns
+  - src/server.js
+  - src/store.js
+  - src/html.js
+  - src/bridge.js
+  - src/backup.js
+  - src/upload.js
+  - public/index.html
+  - public/app.js
+  - public/style.css
+mac:
+  target:
+    - target: dmg
+      arch: arm64
+  category: public.app-category.productivity
+  icon: desktop/icon.icns
+  identity: '-'
+  hardenedRuntime: false
+  notarize: false
+dmg:
+  sign: false
+artifactName: '${productName}-${version}-${arch}.${ext}'

@@ -21,3 +21,7 @@ outputs/
 # Host-specific orchestration evidence stays local
 .codex/agents/ACTIVITY_LOG.md
 .codex/agents/DEFERRED_HARDENING.md
+
+# Local desktop bundles
+*.app/
+*.dmg
