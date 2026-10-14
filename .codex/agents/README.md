@@ -1,5 +1,13 @@
 # PageNest 最小执行团队
 
+## 当前职责 · 2026-10-14 开源文档
+
+macOS 桌面已交付，本轮只整理开源文档和公开源仓库，用户明确保留现有 Git 历史；不追加程序测试/构建/运行，不恢复 AI。总控唯一写文档/治理/Brain，原业务 Writer idle，原代码管理唯一执行文档分支 PR、准确合并及 Public 设置。执行角色保持用户指定 GPT-6.1 Sol / High / 已开启 Fast；运行档缺失时记 unknown。
+
+公开贡献从 README / CONTRIBUTING 开始，无需维护者私人环境。本文件余下团队记录及工作单是历史，不代表业务继续授权；canonical 现为 Brain Projects/active/PageNest/index.md。仓库实际 Public 状态由代码管理完成设置后读回，不凭本文件推断。
+
+## 历史团队记录
+
 用户当轮要求执行对话框 GPT-6.1 Sol / High / Fast，并增加专用可见代码管理角色。业务仍一个连续 Writer，Verifier 只在完整候选且风险需要时启用，不按页面拆团队。
 
 **当前阶段：已批准精修UI落地与真实资料本机试用；内置AI暂停**。独立设计已完成并获用户批准；原Writer/代码管理仅为PN-UI-IMPLEMENT启用，隔离功能分支落实真实UI，验收后启动和点名4份桌面HTML导入。AI goal已paused，源码/方案本地保留，不推进AI审核/测试/Git或启用，恢复须明确授权。

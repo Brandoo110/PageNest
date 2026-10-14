@@ -1,5 +1,17 @@
 # PageNest
 
+## 当前阶段与公开贡献入口 · 2026-10-14
+
+macOS Apple Silicon 桌面版与核心阅读体验已交付，本机个人试用；基线 PR13 / main b131f8b2。用户授权本轮更新开源文档并将 Brandoo110/PageNest 设为 Public，且明确选择保留现有提交历史（包括作者邮箱和开发路径）；实际可见性以 GitHub 读回为准。
+
+- 当前任务只改文档、许可元数据与资料忽略规则，经文档分支 PR 合入后公开仓库；不修改业务、不追加程序验证、构建、运行或数据迁移。用户已明确停止进一步程序验证。
+- 外部贡献者从 README、CONTRIBUTING、docs/technical-reference.md 和当前源码开始；无需维护者私人 Brain、绝对路径、对话工具或本机资料。下方既有工作单、SHA/PID和阶段权限均为历史，不能当当前运行事实或新的授权。
+- 内置 AI/Key/模型调用继续暂停。公开源码不授权上传私人 HTML、数据库、备份、运行日志或真实资料截图，也不授权登录、同步、局域网或公网部署。
+- 本轮总控为唯一文档/治理 Writer，既有“PageNest 代码管理”为唯一 Git Writer；业务 Writer idle。维护者团队与模型按最近用户指令，不修改历史运行证据。普通贡献者遵循贡献指南的功能分支和适度检查流程。
+- 阶段仍本机试用；Apple 公证、自动更新、跨平台和深度加固后置。历史内容增量保留，当前状态以本节及维护者 canonical 为准。
+
+## 历史阶段与授权记录
+
 ## 当前阶段：本机全文搜索与整库备份恢复迭代；内置AI暂停
 
 2026-10-13 已批准原型的真实本地V1通过PR3合main31e9b83d4c7f2dcd44566757ab66b954b12a29be并交本人试用。18:35用户明确暂停内置AI/DeepSeek资料生成HTML，继续之前的已有HTML导入阅读设计；HTML可由Codex在软件外生成后导入。新目标已核实paused，两个执行角色已确认停止并idle。canonical 为 `/Users/junjieli/obsidian/Brain/Projects/active/AI知识阅读库/index.md`；`docs/资料生成HTML-工作单.md`和已写候选保留为暂停方案，不构成恢复授权。原型SHA256 d0e03204ce79fe263983afacd2ca451014ba6d39508d70335ea07d85811229c7只读。
