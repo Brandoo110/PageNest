@@ -13,8 +13,10 @@ const uuid='[0-9a-f-]{36}';
 function send(res,status,data){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(data))}
 async function json(req){let size=0;const chunks=[];for await(const c of req){size+=c.length;if(size>65536)throw fail(413,'表单数据过大。');chunks.push(c)}try{const value=JSON.parse(Buffer.concat(chunks).toString());if(!value||Array.isArray(value)||typeof value!=='object')throw Error();return value}catch{throw fail(400,'表单格式无效。')}}
 export function createApp({dataDir=resolve('.data')}={}){
- const store=new Store(dataDir),previews=new Map();let closed=false;
+ const store=new Store(dataDir),previews=new Map();let closed=false,closing;
  const server=http.createServer(async(req,res)=>{try{
+  if(closed)throw fail(503,'PageNest 正在退出。');
+  const input=async reader=>{const value=await reader(req);if(closed)throw fail(503,'PageNest 正在退出，请重开后核对操作结果。');return value};
   const address=server.address(),host=`127.0.0.1:${address.port}`,origin='http://'+host;
   if(req.headers.host!==host)throw fail(403,'只允许当前本机地址访问。');
   if(req.headers.origin&&req.headers.origin!==origin)throw fail(403,'不允许跨站访问。');
@@ -23,24 +25,24 @@ export function createApp({dataDir=resolve('.data')}={}){
   const url=new URL(req.url,origin),path=url.pathname;let match;
   if(req.method==='GET'&&path==='/api/health')return send(res,200,{ok:true,localOnly:true});
   if(req.method==='GET'&&path==='/api/backup/export'){const buffer=store.exportBackup();res.writeHead(200,{'Content-Type':'application/octet-stream','Content-Disposition':`attachment; filename="PageNest-${new Date().toISOString().slice(0,10)}.pagenest"`,'Content-Length':buffer.length,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});return res.end(buffer)}
-  if(req.method==='POST'&&path==='/api/backup/restore')return send(res,200,store.restoreBackup(await readBackup(req)));
+  if(req.method==='POST'&&path==='/api/backup/restore')return send(res,200,store.restoreBackup(await input(readBackup)));
   if(req.method==='GET'&&path==='/api/library')return send(res,200,store.library());
   if(req.method==='GET'&&path==='/api/search'){const trash=url.searchParams.get('trash')??'0';if(!['0','1'].includes(trash))throw fail(400,'搜索范围无效。');return send(res,200,store.search(url.searchParams.get('q'),trash==='1'))}
-  if(path==='/api/folders'&&req.method==='POST')return send(res,201,store.createFolder((await json(req)).name));
-  if((match=path.match(new RegExp(`^/api/folders/(${uuid})$`)))){if(req.method==='PATCH')return send(res,200,store.renameFolder(match[1],(await json(req)).name));if(req.method==='DELETE')return send(res,200,store.deleteFolder(match[1]));}
-  if(path==='/api/import'&&req.method==='POST'){const result=store.import(await multipart(req));return send(res,result.replayed?200:201,result)}
-  if(path==='/api/inspect'&&req.method==='POST'){const data=await multipart(req);const file=data.files.html||data.files.source;validateFile(file,true);const inspected=inspectHTML(file.buffer);for(const [id,p] of previews)if(p.expires<Date.now())previews.delete(id);while(previews.size>=3)previews.delete(previews.keys().next().value);const id=randomUUID();previews.set(id,{display:inspected.display,expires:Date.now()+600000});return send(res,200,{title:inspected.title,warnings:inspected.warnings,previewUrl:'/api/previews/'+id})}
+  if(path==='/api/folders'&&req.method==='POST')return send(res,201,store.createFolder((await input(json)).name));
+  if((match=path.match(new RegExp(`^/api/folders/(${uuid})$`)))){if(req.method==='PATCH')return send(res,200,store.renameFolder(match[1],(await input(json)).name));if(req.method==='DELETE')return send(res,200,store.deleteFolder(match[1]));}
+  if(path==='/api/import'&&req.method==='POST'){const result=store.import(await input(multipart));return send(res,result.replayed?200:201,result)}
+  if(path==='/api/inspect'&&req.method==='POST'){const data=await input(multipart);const file=data.files.html||data.files.source;validateFile(file,true);const inspected=inspectHTML(file.buffer);for(const [id,p] of previews)if(p.expires<Date.now())previews.delete(id);while(previews.size>=3)previews.delete(previews.keys().next().value);const id=randomUUID();previews.set(id,{display:inspected.display,expires:Date.now()+600000});return send(res,200,{title:inspected.title,warnings:inspected.warnings,previewUrl:'/api/previews/'+id})}
   if((match=path.match(new RegExp(`^/api/previews/(${uuid})$`)))&&req.method==='GET'){const p=previews.get(match[1]);if(!p||p.expires<Date.now())throw fail(404,'受限预览已过期，请重新选择文件。');res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Content-Security-Policy':HTML_CSP,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});return res.end(p.display)}
-  if((match=path.match(new RegExp(`^/api/materials/(${uuid})$`)))){if(req.method==='GET')return send(res,200,store.get(match[1]));if(req.method==='PATCH')return send(res,200,store.edit(match[1],await json(req)));}
+  if((match=path.match(new RegExp(`^/api/materials/(${uuid})$`)))){if(req.method==='GET')return send(res,200,store.get(match[1]));if(req.method==='PATCH')return send(res,200,store.edit(match[1],await input(json)));}
   if((match=path.match(new RegExp(`^/api/materials/(${uuid})/open$`)))&&req.method==='POST')return send(res,200,store.open(match[1]));
   if((match=path.match(new RegExp(`^/api/materials/(${uuid})/markdown$`)))&&req.method==='GET'){
    const m=store.get(match[1]),name=(m.title.replace(/[\r\n\0/\\]/g,' ').trim().slice(0,120)||'PageNest')+'.md';
    res.writeHead(200,{'Content-Type':'text/markdown; charset=utf-8','Content-Disposition':`attachment; filename="PageNest-notes.md"; filename*=UTF-8''${encodeURIComponent(name).replace(/'/g,'%27')}`,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});return res.end(store.markdown(m.id));
   }
   if((match=path.match(new RegExp(`^/api/materials/(${uuid})/outline$`)))&&req.method==='GET')return send(res,200,{outline:store.outline(match[1])});
-  if((match=path.match(new RegExp(`^/api/materials/(${uuid})/source$`)))&&req.method==='POST')return send(res,200,store.source(match[1],await multipart(req)));
+  if((match=path.match(new RegExp(`^/api/materials/(${uuid})/source$`)))&&req.method==='POST')return send(res,200,store.source(match[1],await input(multipart)));
   if((match=path.match(new RegExp(`^/api/materials/(${uuid})/reading$`)))&&req.method==='GET')return send(res,200,store.reading(match[1]));
-  if((match=path.match(new RegExp(`^/api/materials/(${uuid})/reading/(html|source)$`)))&&req.method==='PUT')return send(res,200,store.updateReading(match[1],match[2],await json(req)));
+  if((match=path.match(new RegExp(`^/api/materials/(${uuid})/reading/(html|source)$`)))&&req.method==='PUT')return send(res,200,store.updateReading(match[1],match[2],await input(json)));
   if((match=path.match(new RegExp(`^/api/files/(${uuid})/(download|display|raw)$`)))&&req.method==='GET'){
    const file=store.file(match[1]),mode=match[2];if(mode==='display'){res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Content-Security-Policy':HTML_CSP,'X-Content-Type-Options':'nosniff','Cache-Control':'no-store'});return res.end(store.display(file.id))}
    if(mode==='raw'&&file.mime!=='application/pdf')throw fail(400,'此原始文件仅提供下载。');
@@ -50,7 +52,12 @@ export function createApp({dataDir=resolve('.data')}={}){
   throw fail(404,'没有找到这个页面或文件。');
  }catch(error){if(!res.headersSent)send(res,error.status||500,{error:error.status?error.message:req.method==='GET'?'暂时无法完成请求，请重试。':'未保存成功，请保留表单后重试。',...(error.code?{code:error.code}:{}),...(error.materialId?{materialId:error.materialId}:{}),...(error.warnings?{warnings:error.warnings}:{})});else res.end()}});
  server.requestTimeout=120000;
- return {server,store,close:async()=>{if(closed)return;closed=true;await new Promise(r=>server.close(r));store.close()}};
+ return {server,store,close:({timeoutMs=3000}={})=>{
+  if(closing)return closing;closed=true;
+  closing=new Promise(resolveClose=>{let timer;const finish=()=>{clearTimeout(timer);try{store.close()}finally{resolveClose()}};
+   server.close(finish);server.closeIdleConnections();timer=setTimeout(()=>server.closeAllConnections(),Math.min(5000,Math.max(50,Number(timeoutMs)||3000)));timer.unref();
+  });return closing;
+ }};
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  const port=Number(process.env.PAGENEST_PORT||4173);if(!Number.isInteger(port)||port<1||port>65535)throw Error('PAGENEST_PORT 无效。');

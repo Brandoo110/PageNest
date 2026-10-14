@@ -351,3 +351,22 @@ document.addEventListener('drop',e=>{if(!fileDrop(e))return;e.preventDefault();i
 window.addEventListener('resize',()=>{if($('#outline-dialog')&&matchMedia('(min-width:701px)').matches)closeDialog();renderOutline();if($('#reader-frame')){naturalWidth=0;$('#reader-frame').style.width='100%';$('#reader-frame').style.zoom=1;$('#reader-frame').style.height='100%'}});
 window.addEventListener('pagehide',()=>{for(const {id,which,scrollTop,page} of dirtyReading.values())fetch(`/api/materials/${id}/reading/${which}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({scrollTop,page}),keepalive:true}).catch(()=>{})});
 (async()=>{try{const id=location.hash.match(/^#read\/([0-9a-f-]{36})$/)?.[1];await refresh();const previous=history.state;if(previous){folder=['all','recent','uncategorized','trash'].includes(previous.folder)||libraryData.folders.some(f=>f.id===previous.folder)?previous.folder:'all';query=typeof previous.query==='string'?previous.query.slice(0,120):'';listY=Number.isFinite(previous.listY)?Math.max(0,previous.listY):0}if(id&&getItem(id)&&!getItem(id).deletedAt)await openReader(id);else library()}catch(error){$('#screen').innerHTML='<div class="empty"><h2>资料库暂时无法打开</h2><p>'+esc(error.message)+'</p><button data-action="reload-app">重新加载</button></div>';document.querySelector('[data-action="reload-app"]').onclick=()=>location.reload()}})();
+
+// Desktop-only renderer behavior; no preload, Node API or privileged message channel.
+if(navigator.userAgent.includes('PageNestDesktop/1')){
+ let pendingWrites=0;const browserFetch=window.fetch.bind(window);
+ window.fetch=(...args)=>{
+  const method=String(args[1]?.method||args[0]?.method||'GET').toUpperCase(),writing=!['GET','HEAD'].includes(method);
+  if(writing)pendingWrites++;
+  try{return browserFetch(...args).finally(()=>{if(writing)pendingWrites--})}catch(error){if(writing)pendingWrites--;throw error}
+ };
+ window.addEventListener('beforeunload',event=>{
+  if(pendingWrites||notesEditor&&(notesEditor.busy||notesEditor.draft!==notesEditor.saved)||draft?.dirty||draft?.saving||batchDraft?.busy||dirtyReading.size){event.preventDefault();event.returnValue=''}
+ });
+ document.addEventListener('click',event=>{
+  const link=event.target.closest('a[href]');if(!event.isTrusted||!link)return;
+  const url=new URL(link.href,location.href);
+  if(url.protocol==='https:'){event.preventDefault();location.assign(url.href)}
+  else if(url.origin===location.origin&&link.target==='_blank'&&/^\/api\/files\/[0-9a-f-]{36}\/raw$/.test(url.pathname)){event.preventDefault();const download=document.createElement('a');download.href=url.origin+url.pathname.replace(/\/raw$/,'/download');download.download='';download.click()}
+ });
+}

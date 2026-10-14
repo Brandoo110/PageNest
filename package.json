@@ -1,1 +1,29 @@
-{"name":"pagenest","version":"0.1.0","private":true,"type":"module","engines":{"node":">=22.13"},"scripts":{"start":"node src/server.js","check":"node --check src/backup.js && node --check src/server.js && node --check src/store.js && node --check src/html.js && node --check src/upload.js && node --check src/bridge.js && node --check public/app.js && node --check tests/local.test.js","test":"node --test --test-concurrency=1 tests/local.test.js"},"dependencies":{"busboy":"1.6.0","dom-serializer":"3.1.1","htmlparser2":"12.0.0"}}
+{
+  "name": "pagenest",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "check": "node --check src/backup.js && node --check src/server.js && node --check src/store.js && node --check src/html.js && node --check src/upload.js && node --check src/bridge.js && node --check public/app.js && node --check tests/local.test.js",
+    "test": "node --test --test-concurrency=1 tests/local.test.js",
+    "desktop:dev": "electron .",
+    "desktop:package": "electron-builder --mac dmg --arm64 --publish never",
+    "desktop:check": "node --check desktop/main.cjs && node --check desktop/policy.cjs && node --check public/app.js && node --check src/server.js && node --test --test-concurrency=1 tests/desktop.test.js"
+  },
+  "dependencies": {
+    "busboy": "1.6.0",
+    "dom-serializer": "3.1.1",
+    "htmlparser2": "12.0.0"
+  },
+  "main": "desktop/main.cjs",
+  "devDependencies": {
+    "electron": "44.7.2",
+    "electron-builder": "26.15.3"
+  },
+  "description": "PageNest 本机 HTML 阅读库",
+  "author": "Junjie Li"
+}

@@ -104,3 +104,24 @@ npm test
 ```
 
 `npm test` 仅一份 focused 文件、并发1、独立临时目录：真实导入、原件字节、去重/幂等、分类、位置、重启，以及最小 Host/Origin/路径/CSP/附件故障回滚反例；不运行压力或全量测试。本次浏览器证据与限制见本地 `artifacts/V1-交付.md`（Git忽略），不把原型检查当业务验收。
+
+## macOS 桌面版（Apple Silicon）
+
+桌面版复用同一阅读界面。PageNest.app 自带 Electron/Node/SQLite，点击自动启动仅绑定127.0.0.1的随机端口，不需要另外启动Node/npm或4173；重复打开唤起原窗口。标准macOS关于/退出、编辑快捷键和窗口菜单保留。关闭主窗口或Cmd+Q会退出应用和本地服务；有未保存备注/表单或在途写入时，页面beforeunload进入原生“保留窗口/退出”确认。退出不回滚已完成操作，未确认请求可重开核对。正常窗口退出后连接最多等待3秒再关闭，DB只关闭一次；阅读位置pagehide补发保留短暂处理机会，不保证强杀/系统关机或脚本占满CPU时最后一刻坐标已写入。
+
+默认资料为 `~/Library/Application Support/PageNest/library`，Electron配置与600权限的PID/origin/versions诊断文件在上级 `runtime.json`，退出删除。更新不删除资料；不自动读取仓库`.data`，两库不自动同步。第一次正式安装和原库迁移须总控ACCEPT/Git后快照旧库、在空桌面库恢复v2备份并核对原件/字段/位置，原库保留。本机个人包为ad-hoc签名、未Apple公证，未申请Developer ID或自动更新，不承诺其它Mac的Gatekeeper放行；不修改系统安全或自动清理quarantine属性。
+
+```sh
+npm ci
+npm run desktop:dev
+npm run desktop:check
+npm run desktop:package
+```
+
+固定开发依赖Electron44.7.2和electron-builder26.15.3；Electron44包首次CLI运行会按官方安装器下载运行文件。当前实际Electron为Node24.21.0/SQLite3.53.4/arm64，不以系统Node替代Electron证明。开发/验证必须显式设置绝对路径 `PAGENEST_DESKTOP_DATA_DIR=/你的隔离临时目录`，资料在那里，Electron配置隔离到该目录`.electron`；不要指向正式库。可选调试端口仅在显式隔离路径下使用 `PAGENEST_DESKTOP_TEST_PORT`，默认不启动调试端口或DevTools。
+
+安装产物在 `artifacts/desktop/build/mac-arm64/PageNest.app` 和 `artifacts/desktop/build/PageNest-0.1.0-arm64.dmg`，通过electron-builder.yml正面文件清单仅装入桌面入口/策略/图标、六份业务src、三份public、package.json和生产运行依赖。开发测试、.data、原型、暂停AI、治理/Brain、私人样本和artifacts不进入包。`--publish never` 不发布或上传；没有开机启动、文件关联、托盘或自动更新。
+
+主窗口nodeIntegration=false/contextIsolation=true/sandbox=true/webSecurity=true，无preload/通用IPC。导入HTML继续opaque iframe及原CSP，无Node和same-origin。弹窗/webview/权限请求拒绝；应用网络仅自身loopback及必要data图片/字体与本origin Blob。外部来源仅可信主frame发起HTTPS、再由原生确认打开默认浏览器；子iframe无法触发。MD/原件/备份复用下载并提供系统保存对话框选择目标；HTML自身下载不获额外sandbox许可。PDF“新窗口打开”在桌面触发保存PDF，内嵌PDF仍取决于Electron支持，本轮以TXT原文验证，未承诺原生PDF页内恢复。
+
+源码依据与版本差异：Electron [生命周期/单实例/userData](https://www.electronjs.org/docs/latest/api/app)、[安全配置](https://www.electronjs.org/docs/latest/tutorial/security)、[frame导航与退出事件](https://www.electronjs.org/docs/latest/api/web-contents)；打包配置以安装的26.15.3 schema为准，当前[macOS文档](https://www.electron.build/mac/)已经包含v27字段迁移，本项目不混用v27的mac.sign结构。
