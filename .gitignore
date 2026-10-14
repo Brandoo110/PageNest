@@ -8,6 +8,8 @@ outputs/
 
 # Personal library, databases, secrets and logs
 .data/
+.data-*/
+*.pagenest
 *.sqlite
 *.sqlite-*
 *.db

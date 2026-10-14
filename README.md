@@ -1,127 +1,92 @@
 # PageNest
-私人 HTML 阅读库：保存 AI 整理页面与原始资料，按文件夹归类并继续阅读。
 
-## 本机第一版
+把 HTML 资料收在一起，随时接着读。
 
-Node.js 22.13+（当前核验为 22.23.2），普通 HTML/CSS/JS、Node HTTP、内置 SQLite 与普通文件。`node:sqlite` 在当前版本仍会发出 ExperimentalWarning。
+PageNest 是一个本地优先的 HTML 阅读库。你可以导入已有的文章、学习笔记或 AI 整理页面，按文件夹归类、搜索正文、记录阅读进度和个人备注。当前提供 macOS Apple Silicon 桌面版，保留轻量的本机网页版。
+
+![PageNest 资料库与关键词高亮](docs/images/library.png)
+
+*截图使用虚构资料；安装后从空库开始。*
+
+## 能做什么
+
+- **导入与分类**：单份或批量拖入 HTML，统一选择文件夹，重复资料自动跳过；PDF、TXT、HTML 原文和 HTTPS 来源链接可选。
+- **全文搜索**：检索标题与 HTML 静态正文，在结果标题和片段中高亮关键词。
+- **继续阅读**：保存阅读位置，提供可收起的章节目录；HTML 与原文在同一条目中切换。
+- **阅读状态**：未读、在读、已读，配合分类和搜索整理待读资料。
+- **个人备注**：保存纯文本备注，将标题、来源、状态和备注导出为 Markdown，方便带入 Obsidian。
+- **整库备份**：导出 `.pagenest` 文件，恢复时合并去重，保留已有资料。
+
+所有资料保存在当前电脑。应用无需账号，也无需 API Key；HTML 可以由你使用的工具在软件外生成后导入。
+
+## 使用桌面版
+
+打开 `PageNest.app` 即可使用，自带运行环境，无需先启动终端服务。重复打开会唤起已有窗口；关闭窗口或退出应用会结束本地服务。未保存的编辑会提示确认。
+
+**当前尚未在 GitHub 发布可下载的安装包。** 可按下方步骤从源码构建。当前交付范围为 macOS Apple Silicon；Intel Mac、Windows、Linux 尚未验证。
+
+资料默认保存于：
+
+```text
+~/Library/Application Support/PageNest/library
+```
+
+推荐使用侧栏“备份与恢复”定期导出。更新应用不会自动删除该目录；桌面库与源码网页版的 `.data/` 各自独立，需要通过备份手动迁移。
+
+## 从源码运行
+
+需要 Node.js **22.13 或更新版本**、npm，以及首次安装依赖时的网络连接。
 
 ```sh
+git clone https://github.com/Brandoo110/PageNest.git
+cd PageNest
 npm ci
+PAGENEST_DESKTOP_DATA_DIR="$PWD/.data-desktop-dev" npm run desktop:dev
+```
+
+上述命令使用独立开发资料目录，避免改动日常桌面库。首次安装会下载 Electron 运行环境。
+
+也可以运行本机网页版：
+
+```sh
 npm start
 ```
 
-默认仅监听 `http://127.0.0.1:4173`，默认资料目录为项目 `.data/`。端口占用会明确失败，不自动换端口或绑定网络。可用 `PAGENEST_PORT` 和 `PAGENEST_DATA_DIR` 指定独立本机实例；测试应使用临时目录与独立端口。**本次候选的正式 `.data` 启动仍须总控 ACCEPT；Writer 只启动隔离测试实例。**
+打开 `http://127.0.0.1:4173`，资料位于项目 `.data/`。应用仅监听本机回环地址；不支持直接向局域网或公网开放。
 
-应用从空库开始。电脑选择一份真实 HTML（20 MB 以内），可选一份 PDF/TXT/HTML 原文（50 MB 以内）及 HTTPS 来源链接，保存后直接阅读。资料库或导入页可拖放 / 选择多份 HTML：最多20份、每份20MiB、总100MiB，统一分类、先检查再串行真实保存。逐份显示新增、重复跳过与失败，失败可沿原 requestId 重试，成功条目不重导；外部资源逐份重新取得受限预览并明确确认，未确认不会保存。停止只阻止剩余项，等待当前请求读回（每请求有120秒上限，超时结果未确认时沿同一次请求重试）；已保存保留，不表示整批回滚。分类在保存开始后固定，批量来源随后逐份补充；一份文件仍用原标题 / 可选来源 / 保存阅读流程。队列仅保留在当前页面，刷新或关页不承诺续传，已有保存仍在库中。
+## 构建 macOS 安装包
 
-单层文件夹、全库标题与 HTML 静态正文搜索、最近阅读、资料编辑/移动、回收站恢复、原文件下载和独立阅读位置均由服务端存储。`examples/` 全部为公开虚构材料，须手动选择并真实导入，不会预填进资料库。
-
-阅读器沿用用户批准的原型：桌面48px / 手机约55px紧凑顶栏，HTML/原文圆润胶囊、绿色底块约260ms滑动、减少动态效果、手机44px触控区域。无底部状态栏；顶栏“从头阅读”只重置当前 HTML/TXT/原文 HTML 至顶部，或 PDF 的手动页码到1，另一视图位置不变；原文视图没有可读文件时该动作禁用。HTML 自身图文和离线交互在独立沙箱中显示。固定宽度只影响正文区域，可缩放到屏幕；缩放不修改原文件。
-
-## 章节目录
-
-HTML 阅读页的“目录”从静态 h1–h6 提取，最多200项、标题最多200字；桌面为可收起窄侧栏，手机复用分类同款抽屉，点章节后自动关闭并滚动到对应标题。跳转继续保存 HTML 阅读位置，重开可接着读；原文视图不提供主 HTML 目录。没有标题时给出空态，载入失败可重试。紧凑顶栏、HTML/原文胶囊和原件下载保留；窄屏“从头阅读”使用带可访问名称的箭头按钮。
-
-目录和展示副本由同一解析规则生成，排除 head/template/script/style/noscript、hidden、aria-hidden=true、内联 display:none / visibility:hidden 等已知不可见标题及空标题；不计算外部/样式表 CSS，不包含脚本生成的标题。原有 id 保留，输入的 data-pagenest-heading 清除后只在可导航标题添加受控标记。旧资料读取时从原件生成当前展示与目录，不改原件、数据库、位置或磁盘中的旧派生文件；每次 HTML 展示/目录请求各做一次有界文件解析，不声称大文件性能已验收。
-
-跳转消息只由 parent 发给当前 opaque iframe，channel=pagenest-reading / type=heading / 白名单 pn-heading-N。桥只检查父窗口并滚动受控标题；消息不提供业务写命令。主应用仍只接受当前 iframe 的有界 position/size，CSP 与 sandbox 不变。
-
-## 阅读状态与个人备注
-
-列表显示未读 / 在读 / 已读，可与现有分类和关键词搜索组合筛选。新导入为未读，打开未读资料自动变为在读；手动已读后再打开仍为已读。更多菜单可手动切换三种状态，改回未读不会重置原有阅读位置。滚动消息仅保存位置，不修改状态。
-
-列表和阅读器的更多菜单均可打开“个人备注”，使用普通 textarea，最多8000字；明确保存后才更新权威值。保存期间禁用输入，失败保留草稿；Escape、关闭和应用内换弹窗都会提醒未保存修改，可继续编辑或放弃。保存请求最多等待120秒，超时表示结果未确认，可保存同一草稿后核对。备注不纳入 HTML 全文索引。
-
-“导出 Markdown”只下载服务器已保存的标题、HTML文件名、可选原文文件名/来源链接、阅读状态和个人备注。备注编辑器内明确提醒未保存内容不会下载；元数据与备注作为纯文本转义，HTTPS来源链接保留可点击形式。文件不自动写入 Brain 或其它目录，由用户选择存放。
-
-启动仅对缺失列做一次事务增量迁移：旧 lastReadAt 非空设在读，否则未读，备注默认空；之后重启不覆盖手动值。新增列默认值与原件、来源、请求ID、分类、位置独立。JSON表单上限为64KiB，支持8000字中文备注，字段仍各自校验。
-
-## 全文搜索
-
-搜索框可匹配资料标题与原 HTML 的静态正文，中文为字面子串，英文忽略大小写；`%` / `_` 是普通字符。最长120字，空白输入显示原分类列表。搜索跨文件夹；回收站中的搜索只返回回收资料。结果显示有限纯文本片段，打开后仍从既有阅读位置继续，不跳到命中段落。
-
-正文由现有 HTML 解析器提取：实体解码、块间留空格、压缩空白，排除 head/title/script/style/template/noscript 与 hidden、aria-hidden=true、内联 display:none / visibility:hidden 内容。不执行脚本、不联网；不能搜索脚本生成的动态内容、CSS 计算后的可见性、原文附件 PDF/TXT/HTML 或 OCR。仅图像/图表页面仍可按标题搜索。
-
-`material_text` 是可重建的正文派生表，新导入与资料事务一并写入；启动时从原件补齐缺失索引，不改原文件或其它业务状态。标题编辑立即生效，回收/恢复改变搜索范围。`/api/library` 保持元数据响应，不包含全文。搜索等待、失败和重新搜索在现有列表中显示，失败不会伪装成空结果。
-
-## 数据与边界
-
-- 原始字节在 `.data/files/<UUID>`；用于阅读的 HTML/TXT 展示副本在 `.data/display/<UUID>.html`；元数据（含阅读状态及个人备注）、分类与阅读位置在 `.data/library.sqlite`。原文件下载始终取原始字节。展示副本移除资源 base/自动刷新和旧编码声明，注入最小阅读桥，单独套用 CSP，不修改原件。
-- 同一次 `requestId` 重试返回原结果；同一 HTML SHA-256 的新导入提示重复并提供原 materialId，不覆盖条目。HTML、附件文件与元数据全部成功后才返回保存成功；失败回滚元数据并清理本次新文件。
-- 删夹只归入未分类；回收站只改变资料状态。没有永久删除或自动清空。替换原文只改变当前关联，旧原文文件保守保留，首版没有版本管理/孤立文件清理。
-- 展示端点响应 CSP `sandbox allow-scripts`，iframe 同样仅 `sandbox="allow-scripts"`，不给 same-origin。联网、嵌套 iframe、对象、base/form 等被禁；应用 `frame-src 'self'` 进一步阻止子页外部导航。主页面只接受当前 iframe Window、opaque/null origin、有界数字的 position/size 消息；其它消息不能触发业务操作。
-- HTML 资源依赖先提示并提供 HTTP 受限预览，用户明确确认继续。首版承诺自包含页面与简单离线交互；不保证任意网页应用、第三方脚本、外部字体/图像或所有编码和图表兼容。沙箱不代表执行脚本的 CPU/内存已经被限额。
-- PDF 使用浏览器原生预览，提供手动页码跳转、新窗口和下载。**仅保存手动跳转页码，不会自动报告或精确恢复 PDF 页内位置**。浏览器不支持内嵌 PDF 时用 fallback。TXT 安全转义为纯文本，HTML 原文采用同等隔离。
-- 无登录、同步、真机/跨设备验证、部署、公开分享、AI、多级文件夹、PWA 或离线缓存承诺。服务严格 loopback；只允许 `127.0.0.1:<实际端口>` Host，同源写入必须带该 Origin，拒绝外来/null/缺失 Origin；不同来源无法跨站读写。`localhost` 别名也不开放。
-- 侧栏底部或手机分类抽屉打开“备份与恢复”，下载 .pagenest；恢复仅合并，同一 HTML 原件 hash 的资料整条跳过（包括回收条目），已有分类/来源/位置/回收状态不会覆盖。恢复前完整校验，写入失败回滚 DB 与本次新文件。关闭恢复窗口不会撤销已经确认的服务器操作；结果未确认时可核对当前库或重试同一备份。
-
-## .pagenest 版本1 / 2
-
-内置 gzip 压缩的 UTF-8 JSON，顶层 `{format:"PageNest",version:2,exportedAt,folders,materials,files,reading}`。folders 为 id/name；materials 与 `/api/library` DTO 一致，版本2包含 readingStatus / notes；files 为 id/name/mime/size/sha256/data（严格 base64 原始字节）；reading 为 materialId/view/scrollTop/page/updatedAt。日期使用 ISO UTC 毫秒格式。仅支持 HTML/TXT/PDF；主 HTML 最多20MiB、附件50MiB。上传压缩包100MiB、解压 JSON150MiB、原件总量100MiB、所有数组记录合计2000；超限明确失败。备份不打包 requests、展示副本、搜索索引、程序代码、环境与密钥配置、数据库或服务端绝对数据目录。原件自身内容原样保留。
-
-导出采用一致 DB 快照并校验字节 / 长度 / hash。恢复先验证完整 schema、唯一 ID、名称/标题/HTTPS链接、日期、文件与阅读引用、base64/大小/hash，再从原件重建 display 和正文索引；不信任派生内容。分类按同名复用，新资料分配本机 UUID，保留日期、回收状态和双视图位置。原件包含保守保留的旧来源与空分类；已有原件按 sha256+mime+name 复用，不同名字保留。空库首次恢复保留全部文件记录；重复恢复不增加孤立原件。损坏、未知版本、非法字段、引用或写入失败均不会部分合并。
-
-导出使用严格版本2字段集；恢复同时接受严格版本1字段集，按 lastReadAt 归一化默认状态及空备注。版本2状态须为 unread/reading/read、备注须为≤8000字字符串，缺失/非法/额外字段拒绝且无部分恢复。相同HTML整条跳过，不覆盖现有状态或备注；恢复新资料保留两字段。
-
-备份没有加密，包含完整原件；请保存到你选择的本地位置。此次只在虚构临时库验证，正式资料库恢复由用户另行选择，不自动覆盖或清空。
-
-## API
-
-均返回 JSON（文件/页面端点除外）；错误 `{error, code?, materialId?, warnings?}`。无认证仅限当前 loopback 个人阶段。
-
-| 方法与路径 | 输入与结果 |
-|---|---|
-| `GET /api/backup/export` | 校验后返回 no-store attachment `.pagenest` 二进制 |
-| `POST /api/backup/restore` | 单个二进制备份，合并 → `{added,skipped}`；沿用同源写入校验 |
-| `GET /api/health` | 本机健康状态 |
-| `GET /api/search?q=...&trash=0` | `{results:[{id,snippet}]}`，默认非回收全库；trash=1 只搜索回收站，片段为最多182字符的纯文本 |
-| `GET /api/library` | `{folders,materials,files}` 当前权威元数据，含回收站 |
-| `POST /api/folders` | JSON `{name}` → `{id,name}` |
-| `PATCH /api/folders/:id` | `{name}` 重命名 |
-| `DELETE /api/folders/:id` | 删夹并由外键将条目归未分类 |
-| `POST /api/inspect` | multipart `html` 或 `source` HTML → `{title,warnings,previewUrl}`；最多保留3份短期预览 |
-| `GET /api/previews/:id` | 10分钟受限展示副本，执行展示 CSP |
-| `POST /api/import` | multipart `html`, 可选 `source`, `title`, `folderId`, `sourceUrl`, `requestId`, `acceptExternal` → `{material,replayed}`；新保存201，同请求200，内容重复409 |
-| `GET /api/materials/:id` | material DTO |
-| `PATCH /api/materials/:id` | `{title?,folderId?,sourceUrl?,deleted?,readingStatus?,notes?}`；空 folderId 为未分类 |
-| `POST /api/materials/:id/open` | 更新最近阅读，返回 `{material,reading}` |
-| `POST /api/materials/:id/source` | multipart 可选 `source`, `sourceUrl`, `requestId`, `removeSource`, `acceptExternal`；更新当前原文关联 |
-| `GET /api/materials/:id/markdown` | 当前已保存 metadata / 纯文本备注，no-store attachment `.md` |
-| `GET /api/materials/:id/outline` | `{outline:[{id,label,level}]}`，主 HTML 的有界静态章节，只读 |
-| `GET /api/materials/:id/reading` | `{html?,source?}`，各含 `{scrollTop,page,updatedAt}` |
-| `PUT /api/materials/:id/reading/:view` | view=`html/source`；`{scrollTop,page}` 有界校验 |
-| `GET /api/files/:id/download` | 取 metadata 指向的 UUID 原文件，attachment |
-| `GET /api/files/:id/display` | HTML/TXT 展示副本（沙箱 CSP） |
-| `GET /api/files/:id/raw` | 仅 PDF，供原生预览；HTML 不开放原始 inline 路径 |
-
-文件夹名称trim后1–30字符、不能同名或占系统名；资料标题trim后1–120；来源链接仅HTTPS。资料DTO为 `{id,title,folderId,htmlFileId,sourceFileId,sourceUrl,deletedAt,createdAt,lastReadAt,readingStatus,notes}`；file为 `{id,name,mime,size,sha256}`。服务端从 metadata 查文件，不接收用户路径。
-
-## 轻量检查
+在 macOS Apple Silicon 上安装依赖后执行：
 
 ```sh
-npm run check
-npm test
-```
-
-`npm test` 仅一份 focused 文件、并发1、独立临时目录：真实导入、原件字节、去重/幂等、分类、位置、重启，以及最小 Host/Origin/路径/CSP/附件故障回滚反例；不运行压力或全量测试。本次浏览器证据与限制见本地 `artifacts/V1-交付.md`（Git忽略），不把原型检查当业务验收。
-
-## macOS 桌面版（Apple Silicon）
-
-桌面版复用同一阅读界面。PageNest.app 自带 Electron/Node/SQLite，点击自动启动仅绑定127.0.0.1的随机端口，不需要另外启动Node/npm或4173；重复打开唤起原窗口。标准macOS关于/退出、编辑快捷键和窗口菜单保留。关闭主窗口或Cmd+Q会退出应用和本地服务；有未保存备注/表单或在途写入时，页面beforeunload进入原生“保留窗口/退出”确认。退出不回滚已完成操作，未确认请求可重开核对。正常窗口退出后连接最多等待3秒再关闭，DB只关闭一次；阅读位置pagehide补发保留短暂处理机会，不保证强杀/系统关机或脚本占满CPU时最后一刻坐标已写入。
-
-默认资料为 `~/Library/Application Support/PageNest/library`，Electron配置与600权限的PID/origin/versions诊断文件在上级 `runtime.json`，退出删除。更新不删除资料；不自动读取仓库`.data`，两库不自动同步。第一次正式安装和原库迁移须总控ACCEPT/Git后快照旧库、在空桌面库恢复v2备份并核对原件/字段/位置，原库保留。本机个人包为ad-hoc签名、未Apple公证，未申请Developer ID或自动更新，不承诺其它Mac的Gatekeeper放行；不修改系统安全或自动清理quarantine属性。
-
-```sh
-npm ci
-npm run desktop:dev
-npm run desktop:check
 npm run desktop:package
 ```
 
-固定开发依赖Electron44.7.2和electron-builder26.15.3；Electron44包首次CLI运行会按官方安装器下载运行文件。当前实际Electron为Node24.21.0/SQLite3.53.4/arm64，不以系统Node替代Electron证明。开发/验证必须显式设置绝对路径 `PAGENEST_DESKTOP_DATA_DIR=/你的隔离临时目录`，资料在那里，Electron配置隔离到该目录`.electron`；不要指向正式库。可选调试端口仅在显式隔离路径下使用 `PAGENEST_DESKTOP_TEST_PORT`，默认不启动调试端口或DevTools。
+产物位于 `artifacts/desktop/build/`：
 
-安装产物在 `artifacts/desktop/build/mac-arm64/PageNest.app` 和 `artifacts/desktop/build/PageNest-0.1.0-arm64.dmg`，通过electron-builder.yml正面文件清单仅装入桌面入口/策略/图标、六份业务src、三份public、package.json和生产运行依赖。开发测试、.data、原型、暂停AI、治理/Brain、私人样本和artifacts不进入包。`--publish never` 不发布或上传；没有开机启动、文件关联、托盘或自动更新。
+- `mac-arm64/PageNest.app`
+- `PageNest-0.1.0-arm64.dmg`
 
-主窗口nodeIntegration=false/contextIsolation=true/sandbox=true/webSecurity=true，无preload/通用IPC。导入HTML继续opaque iframe及原CSP，无Node和same-origin。弹窗/webview/权限请求拒绝；应用网络仅自身loopback及必要data图片/字体与本origin Blob。外部来源仅可信主frame发起HTTPS、再由原生确认打开默认浏览器；子iframe无法触发。MD/原件/备份复用下载并提供系统保存对话框选择目标；HTML自身下载不获额外sandbox许可。PDF“新窗口打开”在桌面触发保存PDF，内嵌PDF仍取决于Electron支持，本轮以TXT原文验证，未承诺原生PDF页内恢复。
+当前构建使用 ad-hoc 签名，**未取得 Developer ID 签名与 Apple 公证**，其他电脑可能受到 Gatekeeper 限制。打包命令不会自动上传安装包；应用暂未提供自动更新。
 
-源码依据与版本差异：Electron [生命周期/单实例/userData](https://www.electronjs.org/docs/latest/api/app)、[安全配置](https://www.electronjs.org/docs/latest/tutorial/security)、[frame导航与退出事件](https://www.electronjs.org/docs/latest/api/web-contents)；打包配置以安装的26.15.3 schema为准，当前[macOS文档](https://www.electron.build/mac/)已经包含v27字段迁移，本项目不混用v27的mac.sign结构。
+## 使用前了解
+
+- 优先导入自包含 HTML。外部图片、字体、脚本和复杂网页应用可能无法完整显示。
+- 导入 HTML 在隔离沙箱中显示，原文件字节保留；仍应选择可信资料，脚本的 CPU 与内存消耗没有独立限额。
+- 搜索仅覆盖标题与 HTML 静态正文，暂不包括 PDF/OCR、原文附件、备注或脚本生成的正文。目录来自静态章节标题。
+- PDF 预览取决于运行环境；阅读进度仅记录手动页码，不保证页内位置恢复。桌面版“新窗口打开”会保存 PDF 文件。
+- 备份包含完整原件与备注，**没有加密**。恢复采用合并模式，相同 HTML 整条跳过，不覆盖已有状态和备注。
+- 暂未提供内置 AI、登录、同步、多级文件夹、云端服务或多人协作。
+
+文件大小、批量导入、保存行为与备份格式见[使用与技术参考](docs/technical-reference.md)。
+
+## 开发与参与
+
+普通 HTML/CSS/JavaScript + Node HTTP + SQLite，桌面入口使用 Electron。无需前端打包框架。
+
+- [贡献指南](CONTRIBUTING.md)：工作区、分支、提交与适度检查。
+- [数据与安全说明](SECURITY.md)：隔离边界、隐私与问题报告。
+- [更新记录](CHANGELOG.md)：当前已交付能力。
+- [第三方许可说明](THIRD_PARTY_NOTICES.md)。
+
+项目采用 [MIT License](LICENSE)。许可证覆盖项目自身代码与示例，不改变你导入资料的版权与使用许可。

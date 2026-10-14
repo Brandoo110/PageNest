@@ -25,5 +25,6 @@
     "electron-builder": "26.15.3"
   },
   "description": "PageNest 本机 HTML 阅读库",
-  "author": "Junjie Li"
+  "author": "Junjie Li",
+  "license": "MIT"
 }
