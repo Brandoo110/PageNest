@@ -4,8 +4,8 @@ import {fileURLToPath} from 'node:url';
 import {resolve} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {Store} from './store.js';
-import {multipart,validateFile,fail} from './upload.js';
-import {inspectHTML,HTML_CSP} from './html.js';
+import {multipart,validateFile,fail,HTML_LIMIT} from './upload.js';
+import {inspectHTML,HTML_CSP,normalizeEditedHTML} from './html.js';
 import {readBackup} from './backup.js';
 const publicDir=new URL('../public/',import.meta.url);
 const SHELL_CSP="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
@@ -31,7 +31,7 @@ export function createApp({dataDir=resolve('.data')}={}){
   if(path==='/api/folders'&&req.method==='POST')return send(res,201,store.createFolder((await input(json)).name));
   if((match=path.match(new RegExp(`^/api/folders/(${uuid})$`)))){if(req.method==='PATCH')return send(res,200,store.renameFolder(match[1],(await input(json)).name));if(req.method==='DELETE')return send(res,200,store.deleteFolder(match[1]));}
   if(path==='/api/import'&&req.method==='POST'){const result=store.import(await input(multipart));return send(res,result.replayed?200:201,result)}
-  if(path==='/api/inspect'&&req.method==='POST'){const data=await input(multipart);const file=data.files.html||data.files.source;validateFile(file,true);const inspected=inspectHTML(file.buffer);for(const [id,p] of previews)if(p.expires<Date.now())previews.delete(id);while(previews.size>=3)previews.delete(previews.keys().next().value);const id=randomUUID();previews.set(id,{display:inspected.display,expires:Date.now()+600000});return send(res,200,{title:inspected.title,warnings:inspected.warnings,previewUrl:'/api/previews/'+id})}
+  if(path==='/api/inspect'&&req.method==='POST'){const data=await input(multipart);const file=data.files.html;validateFile(file,true);if(Object.keys(data.fields).some(k=>k!=='editorPreview')||data.fields.editorPreview!==undefined&&data.fields.editorPreview!=='true')throw fail(400,'预览字段无效。');const buffer=data.fields.editorPreview==='true'?normalizeEditedHTML(file.buffer).buffer:file.buffer;if(buffer.length>HTML_LIMIT)throw fail(413,'预览 HTML 超过 20 MiB。');const inspected=inspectHTML(buffer);for(const [id,p] of previews)if(p.expires<Date.now())previews.delete(id);while(previews.size>=3)previews.delete(previews.keys().next().value);const id=randomUUID();previews.set(id,{display:inspected.display,expires:Date.now()+600000});return send(res,200,{title:inspected.title,warnings:inspected.warnings,previewUrl:'/api/previews/'+id})}
   if((match=path.match(new RegExp(`^/api/previews/(${uuid})$`)))&&req.method==='GET'){const p=previews.get(match[1]);if(!p||p.expires<Date.now())throw fail(404,'受限预览已过期，请重新选择文件。');res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Content-Security-Policy':HTML_CSP,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});return res.end(p.display)}
   if((match=path.match(new RegExp(`^/api/materials/(${uuid})$`)))){if(req.method==='GET')return send(res,200,store.get(match[1]));if(req.method==='PATCH')return send(res,200,store.edit(match[1],await input(json)));}
   if((match=path.match(new RegExp(`^/api/materials/(${uuid})/open$`)))&&req.method==='POST')return send(res,200,store.open(match[1]));
@@ -40,7 +40,7 @@ export function createApp({dataDir=resolve('.data')}={}){
    res.writeHead(200,{'Content-Type':'text/markdown; charset=utf-8','Content-Disposition':`attachment; filename="PageNest-notes.md"; filename*=UTF-8''${encodeURIComponent(name).replace(/'/g,'%27')}`,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});return res.end(store.markdown(m.id));
   }
   if((match=path.match(new RegExp(`^/api/materials/(${uuid})/outline$`)))&&req.method==='GET')return send(res,200,{outline:store.outline(match[1])});
-  if((match=path.match(new RegExp(`^/api/materials/(${uuid})/source$`)))&&req.method==='POST')return send(res,200,store.source(match[1],await input(multipart)));
+  if((match=path.match(new RegExp(`^/api/materials/(${uuid})/html$`)))){if(req.method==='GET')return send(res,200,store.html(match[1]));if(req.method==='PUT')return send(res,200,store.saveHTML(match[1],await input(multipart)));}
   if((match=path.match(new RegExp(`^/api/materials/(${uuid})/reading$`)))&&req.method==='GET')return send(res,200,store.reading(match[1]));
   if((match=path.match(new RegExp(`^/api/materials/(${uuid})/reading/(html|source)$`)))&&req.method==='PUT')return send(res,200,store.updateReading(match[1],match[2],await input(json)));
   if((match=path.match(new RegExp(`^/api/files/(${uuid})/(download|display|raw)$`)))&&req.method==='GET'){
