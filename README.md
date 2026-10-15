@@ -12,13 +12,14 @@ PageNest is a local-first HTML reading library. Import articles, study notes, or
 
 ## Features
 
-- **Import and organize**: drag in one HTML file or a batch, choose a shared folder, and skip duplicates. Original PDF, TXT, or HTML attachments and HTTPS source links are optional.
+- **Import and organize**: drag in one HTML file or a batch, choose a shared folder, and skip duplicates. HTTPS source links are optional; historical attachments remain available for download.
 - **Folder management**: use the visible ⋯ beside a custom folder in the sidebar or category drawer to open a small menu beside that button. Rename and delete keep their existing input and confirmation dialogs. Deleting a folder moves its materials to Uncategorized and preserves their contents; system categories cannot be renamed or deleted.
 - **Full-text search**: search titles and static HTML text, with highlighted keywords in result titles and snippets.
-- **Resume reading**: save your reading position, navigate with a collapsible table of contents, and switch between HTML and the original source within the same entry.
+- **Resume reading**: save your reading position, open a table of contents that starts collapsed and slides in from the left.
+- **HTML source editing**: edit the current HTML with an isolated live preview and manual saving. Concurrent changes are rejected, and the imported original remains available for download.
 - **Reading status**: filter by unread, reading, or read alongside folders and search results.
 - **Personal notes**: save plain-text notes and export the title, source, status, and notes as Markdown for tools such as Obsidian.
-- **Library backup**: export a `.pagenest` file and restore by merging and deduplicating, preserving existing materials.
+- **Library backup**: export a v3 `.pagenest` file and restore v1/v2/v3 by merging and deduplicating, preserving existing materials.
 
 Your materials stay on your computer. No account or API key is required. You can generate HTML with your preferred tools outside PageNest, then import it.
 
@@ -77,7 +78,7 @@ The current build is ad-hoc signed and **has no Developer ID signature or Apple 
 - Prefer self-contained HTML. External images, fonts, scripts, and complex web applications may not display fully.
 - Imported HTML runs in an isolated sandbox, while original file bytes are preserved. Use trusted materials: script CPU and memory use are not independently capped.
 - Search covers titles and static HTML text. It does not include PDF/OCR, original attachments, notes, or script-generated content. The table of contents uses static headings.
-- PDF preview depends on the runtime. Progress stores manually selected page numbers; restoring a position within a PDF page is not guaranteed. The desktop **Open in new window** action saves the PDF file.
+- The Source tab edits the current HTML, not a separate attachment. Unsaved drafts are not backed up; source editing does not alter the imported original or historical attachment positions.
 - Backups include complete originals and notes and **are not encrypted**. Restore merges materials; matching HTML entries are skipped without overwriting existing statuses or notes.
 - Built-in AI, accounts, synchronization, nested folders, cloud services, and collaboration are not available.
 

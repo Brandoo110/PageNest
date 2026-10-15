@@ -1,4 +1,4 @@
-import {parseDocument,DomUtils} from 'htmlparser2';
+import {parseDocument,DomUtils,Parser} from 'htmlparser2';
 import render from 'dom-serializer';
 import {readFileSync} from 'node:fs';
 export const HTML_CSP="sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; font-src data:; connect-src 'none'; frame-src 'none'; child-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'";
@@ -22,9 +22,34 @@ function staticText(nodes){
  visit(nodes);return chunks.join('').replace(/\s+/gu,' ').trim();
 }
 const bridge=readFileSync(new URL('./bridge.js',import.meta.url),'utf8');
-function decode(buffer){const header=buffer.subarray(0,4096).toString('latin1');const charset=header.match(/charset\s*=\s*["']?([a-zA-Z0-9_-]+)/i)?.[1]||'utf-8';try{return new TextDecoder(charset).decode(buffer)}catch{throw Object.assign(new Error('不支持这个 HTML 字符编码，请另存为 UTF-8。'),{status:400})}}
+export function decodeHTML(buffer){
+ let charset='utf-8';
+ if(buffer[0]===0xff&&buffer[1]===0xfe||[9,10,13,32,60].includes(buffer[0])&&buffer[1]===0)charset='utf-16le';
+ else if(buffer[0]===0xfe&&buffer[1]===0xff||buffer[0]===0&&[9,10,13,32,60].includes(buffer[1]))charset='utf-16be';
+ else if(!(buffer[0]===0xef&&buffer[1]===0xbb&&buffer[2]===0xbf)){
+  const header=parseDocument(buffer.subarray(0,4096).toString('latin1'));
+  const meta=DomUtils.findOne(n=>n.name==='meta'&&(n.attribs?.charset||/^content-type$/i.test((n.attribs?.['http-equiv']||'').trim())&&/(?:^|[;\s])charset\s*=/i.test(n.attribs?.content||'')),header.children,true);
+  charset=meta?.attribs.charset||meta?.attribs.content?.match(/(?:^|[;\s])charset\s*=\s*["']?([a-zA-Z0-9_-]+)/i)?.[1]||charset;
+ }
+ try{return new TextDecoder(charset).decode(buffer)}catch{throw Object.assign(new Error('不支持这个 HTML 字符编码，请另存为 UTF-8。'),{status:400})}
+}
+// Only actual meta attributes are replaced; scripts/comments and all other source stay intact.
+export function normalizeEditedHTML(buffer){
+ let source;try{source=new TextDecoder('utf-8',{fatal:true}).decode(buffer)}catch{throw Object.assign(new Error('编辑内容必须是有效 UTF-8。'),{status:400})}
+ const edits=[];let attributes=[];
+ const parser=new Parser({
+  onopentagname(){attributes=[]},
+  onattribute(name,value){attributes.push({name,value,start:parser.startIndex,end:parser.endIndex})},
+  onopentag(name,attrs){if(name!=='meta')return;for(const attr of attributes){
+   if(attr.name==='charset')edits.push({...attr,text:'charset="utf-8"'});
+   else if(attr.name==='content'&&/^content-type$/i.test((attrs['http-equiv']||'').trim())&&/(?:^|[;\s])charset\s*=/i.test(attr.value))edits.push({...attr,text:'content="'+escapeHTML(attr.value.replace(/(^|[;\s])charset\s*=\s*(?:"[^"]*"|'[^']*'|[^;\s]*)/gi,'$1charset=utf-8'))+'"'});
+  }}
+ });parser.end(source);
+ for(const edit of edits.sort((a,b)=>b.start-a.start))source=source.slice(0,edit.start)+edit.text+source.slice(edit.end);
+ return {source,buffer:Buffer.from(source,'utf8')};
+}
 export function inspectHTML(buffer){
- const doc=parseDocument(decode(buffer));const warnings=new Set();let title='',text='',visual=false;
+ const doc=parseDocument(decodeHTML(buffer));const warnings=new Set();let title='',text='',visual=false;
  const external=value=>value&&!value.trim().startsWith('#')&&!value.trim().startsWith('data:');
  function visit(nodes,blocked=false){for(const node of nodes){if(node.type==='text'&&!blocked)text+=node.data;const tag=node.name;
   if(tag==='title'&&!title)title=DomUtils.textContent(node).trim();
